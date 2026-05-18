@@ -94,12 +94,10 @@
                 </td>
                 <td class="c1">
                     <input type="checkbox" name="timefromrestrict" value="1" {{#datefromchecked}}checked{{/datefromchecked}}>
-                    {{{datefromfields}}}
-                    <input type="hidden" name="hfromday" value="0">
-                    <input type="hidden" name="hfrommonth" value="0">
-                    <input type="hidden" name="hfromyear" value="0">
-                    <input type="hidden" name="hfromhour" value="0">
-                    <input type="hidden" name="hfromminute" value="0">
+                    <span class="hsuforum-date-time-row">
+                        <input type="date" name="datefrominput" id="datefrominput" value="{{datefromdate}}">
+                        <input type="time" name="fromtimeinput" id="fromtimeinput" value="{{datefromtime}}" step="60">
+                    </span>
                 </td>
             </tr>
             <tr>
@@ -108,12 +106,10 @@
                 </td>
                 <td class="c1">
                     <input type="checkbox" name="timetorestrict" value="1" {{#datetochecked}}checked{{/datetochecked}}>
-                    {{{datetofields}}}
-                    <input type="hidden" name="htoday" value="0">
-                    <input type="hidden" name="htomonth" value="0">
-                    <input type="hidden" name="htoyear" value="0">
-                    <input type="hidden" name="htohour" value="0">
-                    <input type="hidden" name="htominute" value="0">
+                    <span class="hsuforum-date-time-row">
+                        <input type="date" name="datetoinput" id="datetoinput" value="{{datetodate}}">
+                        <input type="time" name="totimeinput" id="totimeinput" value="{{datetotime}}" step="60">
+                    </span>
                 </td>
             </tr>
             <tr>
@@ -171,19 +167,20 @@
 </div>
 {{#js}}
     require(['jquery'], function($) {
-        var toggleDateFields = function(prefix, disabled) {
-            $('#searchform select[name^=' + prefix + ']').prop('disabled', disabled);
-            $('#searchform input[name^=h' + prefix + ']').val(disabled ? 1 : 0);
+        var toggleDateFields = function(fieldNames, disabled) {
+            fieldNames.forEach(function(fieldName) {
+                $('#searchform [name="' + fieldName + '"]').prop('disabled', disabled);
+            });
         };
 
-        toggleDateFields('from', !$("#searchform input[name='timefromrestrict']").prop('checked'));
+        toggleDateFields(['datefrominput', 'fromtimeinput'], !$("#searchform input[name='timefromrestrict']").prop('checked'));
         $("#searchform input[name='timefromrestrict']").click(function() {
-            toggleDateFields('from', !this.checked);
+            toggleDateFields(['datefrominput', 'fromtimeinput'], !this.checked);
         });
 
-        toggleDateFields('to', !$("#searchform input[name='timetorestrict']").prop('checked'));
+        toggleDateFields(['datetoinput', 'totimeinput'], !$("#searchform input[name='timetorestrict']").prop('checked'));
         $("#searchform input[name='timetorestrict']").click(function() {
-            toggleDateFields('to', !this.checked);
+            toggleDateFields(['datetoinput', 'totimeinput'], !this.checked);
         });
     });
 {{/js}}

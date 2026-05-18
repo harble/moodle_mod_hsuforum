@@ -157,6 +157,19 @@
 #page-mod-hsuforum-search #searchform label {
     display: block;
 }
+
+#page-mod-hsuforum-search #searchform .hsuforum-date-time-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+#page-mod-hsuforum-search #searchform .hsuforum-date-time-row input[type='date'],
+#page-mod-hsuforum-search #searchform .hsuforum-date-time-row input[type='time'] {
+    width: auto;
+}
+
 #page-mod-hsuforum-search .hsuforum-post:before {
     display: none;
 }

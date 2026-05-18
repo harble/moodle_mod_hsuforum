@@ -215,17 +215,13 @@ class big_search_form implements \core\output\renderable, \core\output\templatab
             $dateto = time() + HOURSECS;
         }
 
-        $data->datefromfields = \core\output\html_writer::select_time('days', 'fromday', $datefrom)
-                              . \core\output\html_writer::select_time('months', 'frommonth', $datefrom)
-                              . \core\output\html_writer::select_time('years', 'fromyear', $datefrom)
-                              . \core\output\html_writer::select_time('hours', 'fromhour', $datefrom)
-                              . \core\output\html_writer::select_time('minutes', 'fromminute', $datefrom);
+        $datefromparts = usergetdate($datefrom);
+        $datetoparts = usergetdate($dateto);
 
-        $data->datetofields = \core\output\html_writer::select_time('days', 'today', $dateto)
-                            . \core\output\html_writer::select_time('months', 'tomonth', $dateto)
-                            . \core\output\html_writer::select_time('years', 'toyear', $dateto)
-                            . \core\output\html_writer::select_time('hours', 'tohour', $dateto)
-                            . \core\output\html_writer::select_time('minutes', 'tominute', $dateto);
+        $data->datefromdate = sprintf('%04d-%02d-%02d', $datefromparts['year'], $datefromparts['mon'], $datefromparts['mday']);
+        $data->datefromtime = sprintf('%02d:%02d', $datefromparts['hours'], $datefromparts['minutes']);
+        $data->datetodate = sprintf('%04d-%02d-%02d', $datetoparts['year'], $datetoparts['mon'], $datetoparts['mday']);
+        $data->datetotime = sprintf('%02d:%02d', $datetoparts['hours'], $datetoparts['minutes']);
 
         if ($this->forumid && !empty($this->forumoptions)) {
             foreach ($this->forumoptions as $index => $option) {

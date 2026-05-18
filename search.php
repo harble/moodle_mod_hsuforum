@@ -42,29 +42,53 @@ $notwords = trim(optional_param('notwords', '', PARAM_NOTAGS));   // Words we do
 $tags = optional_param_array('tags', [], PARAM_TEXT);
 
 $timefromrestrict = optional_param('timefromrestrict', 0, PARAM_INT); // Use starting date
+$datefrominput = trim(optional_param('datefrominput', '', PARAM_RAW_TRIMMED)); // Starting date input (YYYY-MM-DD)
+$fromtimeinput = trim(optional_param('fromtimeinput', '', PARAM_RAW_TRIMMED)); // Starting time input (HH:MM)
 $fromday = optional_param('fromday', 0, PARAM_INT);      // Starting date
 $frommonth = optional_param('frommonth', 0, PARAM_INT);      // Starting date
 $fromyear = optional_param('fromyear', 0, PARAM_INT);      // Starting date
 $fromhour = optional_param('fromhour', 0, PARAM_INT);      // Starting date
 $fromminute = optional_param('fromminute', 0, PARAM_INT);      // Starting date
 if ($timefromrestrict) {
-    $calendartype = \core_calendar\type_factory::get_calendar_instance();
-    $gregorianfrom = $calendartype->convert_to_gregorian($fromyear, $frommonth, $fromday);
-    $datefrom = make_timestamp($gregorianfrom['year'], $gregorianfrom['month'], $gregorianfrom['day'], $fromhour, $fromminute);
+    if (!empty($datefrominput) && preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $datefrominput, $fromdatematches)) {
+        $fromhour = 0;
+        $fromminute = 0;
+        if (!empty($fromtimeinput) && preg_match('/^(\d{2}):(\d{2})$/', $fromtimeinput, $fromtimematches)) {
+            $fromhour = (int) $fromtimematches[1];
+            $fromminute = (int) $fromtimematches[2];
+        }
+        $datefrom = make_timestamp((int) $fromdatematches[1], (int) $fromdatematches[2], (int) $fromdatematches[3], $fromhour, $fromminute);
+    } else {
+        $calendartype = \core_calendar\type_factory::get_calendar_instance();
+        $gregorianfrom = $calendartype->convert_to_gregorian($fromyear, $frommonth, $fromday);
+        $datefrom = make_timestamp($gregorianfrom['year'], $gregorianfrom['month'], $gregorianfrom['day'], $fromhour, $fromminute);
+    }
 } else {
     $datefrom = optional_param('datefrom', 0, PARAM_INT);      // Starting date
 }
 
 $timetorestrict = optional_param('timetorestrict', 0, PARAM_INT); // Use ending date
+$datetoinput = trim(optional_param('datetoinput', '', PARAM_RAW_TRIMMED)); // Ending date input (YYYY-MM-DD)
+$totimeinput = trim(optional_param('totimeinput', '', PARAM_RAW_TRIMMED)); // Ending time input (HH:MM)
 $today = optional_param('today', 0, PARAM_INT);      // Ending date
 $tomonth = optional_param('tomonth', 0, PARAM_INT);      // Ending date
 $toyear = optional_param('toyear', 0, PARAM_INT);      // Ending date
 $tohour = optional_param('tohour', 0, PARAM_INT);      // Ending date
 $tominute = optional_param('tominute', 0, PARAM_INT);      // Ending date
 if ($timetorestrict) {
-    $calendartype = \core_calendar\type_factory::get_calendar_instance();
-    $gregorianto = $calendartype->convert_to_gregorian($toyear, $tomonth, $today);
-    $dateto = make_timestamp($gregorianto['year'], $gregorianto['month'], $gregorianto['day'], $tohour, $tominute);
+    if (!empty($datetoinput) && preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $datetoinput, $todatematches)) {
+        $tohour = 0;
+        $tominute = 0;
+        if (!empty($totimeinput) && preg_match('/^(\d{2}):(\d{2})$/', $totimeinput, $totimematches)) {
+            $tohour = (int) $totimematches[1];
+            $tominute = (int) $totimematches[2];
+        }
+        $dateto = make_timestamp((int) $todatematches[1], (int) $todatematches[2], (int) $todatematches[3], $tohour, $tominute);
+    } else {
+        $calendartype = \core_calendar\type_factory::get_calendar_instance();
+        $gregorianto = $calendartype->convert_to_gregorian($toyear, $tomonth, $today);
+        $dateto = make_timestamp($gregorianto['year'], $gregorianto['month'], $gregorianto['day'], $tohour, $tominute);
+    }
 } else {
     $dateto = optional_param('dateto', 0, PARAM_INT);      // Ending date
 }

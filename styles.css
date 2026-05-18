@@ -151,23 +151,121 @@
 }
 
 #page-mod-hsuforum-search #searchform {
-    max-width: 35em;
+    width: 100%;
+    max-width: 100%;
+}
+
+#page-mod-hsuforum-search #intro.searchbox {
+    font-size: 1.1rem;
+    margin-top: 10px;
+    margin-bottom: 10px;
+}
+
+#page-mod-hsuforum-search .generalbox.boxaligncenter,
+#page-mod-hsuforum-search .searchbox.boxaligncenter {
+    width: 100%;
+    max-width: 100%;
 }
 
 #page-mod-hsuforum-search #searchform label {
     display: block;
+    margin-bottom: 0.25rem;
+}
+
+#page-mod-hsuforum-search #searchform .hsuforum-advanced-search-table {
+    width: 100%;
+    table-layout: fixed;
+    margin-bottom: 0;
+}
+
+#page-mod-hsuforum-search #searchform .hsuforum-advanced-search-table td {
+    vertical-align: middle;
+    padding-top: 0.45rem;
+    padding-bottom: 0.45rem;
+}
+
+#page-mod-hsuforum-search #searchform .hsuforum-advanced-search-table .c0 {
+    width: 38%;
+    font-weight: 600;
+    color: #555;
+}
+
+#page-mod-hsuforum-search #searchform .hsuforum-advanced-search-table .c1 {
+    width: 62%;
+}
+
+#page-mod-hsuforum-search #searchform .form-control,
+#page-mod-hsuforum-search #searchform .custom-select,
+#page-mod-hsuforum-search #searchform input[type='text'],
+#page-mod-hsuforum-search #searchform input[type='date'],
+#page-mod-hsuforum-search #searchform input[type='time'],
+#page-mod-hsuforum-search #searchform select {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
 }
 
 #page-mod-hsuforum-search #searchform .hsuforum-date-time-row {
-    display: inline-flex;
+    display: flex;
     align-items: center;
     gap: 0.5rem;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    width: auto;
+    margin-left: 0;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+#page-mod-hsuforum-search #searchform .hsuforum-date-cell {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+}
+
+#page-mod-hsuforum-search #searchform .hsuforum-date-cell input[type='checkbox'] {
+    flex: 0 0 auto;
+    margin: 0;
 }
 
 #page-mod-hsuforum-search #searchform .hsuforum-date-time-row input[type='date'],
 #page-mod-hsuforum-search #searchform .hsuforum-date-time-row input[type='time'] {
     width: auto;
+}
+
+#page-mod-hsuforum-search #searchform .hsuforum-date-time-row input[type='date'] {
+    flex: 1 1 auto;
+    min-width: 8.2em;
+}
+
+#page-mod-hsuforum-search #searchform .hsuforum-date-time-row input[type='time'] {
+    flex: 0 0 6.2em;
+    min-width: 6.2em;
+}
+
+#page-mod-hsuforum-search #searchform .hsuforum-search-hint {
+    display: inline-block;
+    color: #6b7280;
+    font-size: 0.85rem;
+}
+
+#page-mod-hsuforum-search #searchform .hsuforum-more-toggle {
+    text-decoration: none;
+    font-weight: 600;
+}
+
+#page-mod-hsuforum-search #searchform .hsuforum-search-submit {
+    min-width: 9.5rem;
+}
+
+#page-mod-hsuforum-search #searchform .hsuforum-extra-criteria {
+    background: #fafafa;
+}
+
+#page-mod-hsuforum-search #searchform .hsuforum-extra-criteria .c0,
+#page-mod-hsuforum-search #searchform .hsuforum-extra-criteria .c1 {
+    border-top: 1px solid #f0f0f0;
 }
 
 #page-mod-hsuforum-search .hsuforum-post:before {

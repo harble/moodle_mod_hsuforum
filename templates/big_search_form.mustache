@@ -51,73 +51,15 @@
     {{#str}}searchforumintro, hsuforum{{/str}}
 </div>
 <div class="box generalbox boxaligncenter">
-    <form id="searchform" action="{{actionurl}}" method="get">
-        <table class="searchbox table" id="form">
-            <tr>
-                <td class="c0">
-                    <label for="words">{{#str}}searchwords, hsuforum{{/str}}</label>
-                    <input type="hidden" value="{{courseid}}" name="id">
-                </td>
-                <td class="c1">
-                    <input type="text" size="35" name="words" id="words" value="{{words}}">
-                </td>
-            </tr>
-            <tr>
-                <td class="c0">
-                    <label for="phrase">{{#str}}searchphrase, hsuforum{{/str}}</label>
-                </td>
-                <td class="c1">
-                    <input type="text" size="35" name="phrase" id="phrase" value="{{phrase}}">
-                </td>
-            </tr>
-            <tr>
-                <td class="c0">
-                    <label for="notwords">{{#str}}searchnotwords, hsuforum{{/str}}</label>
-                </td>
-                <td class="c1">
-                    <input type="text" size="35" name="notwords" id="notwords" value="{{notwords}}">
-                </td>
-            </tr>
-            {{#showfullwords}}
-                <tr>
-                    <td class="c0">
-                        <label for="fullwords">{{#str}}searchfullwords, hsuforum{{/str}}</label>
-                    </td>
-                    <td class="c1">
-                        <input type="text" size="35" name="fullwords" id="fullwords" value="{{fullwords}}">
-                    </td>
-                </tr>
-            {{/showfullwords}}
-            <tr>
-                <td class="c0">
-                    {{#str}}searchdatefrom, hsuforum{{/str}}
-                </td>
-                <td class="c1">
-                    <input type="checkbox" name="timefromrestrict" value="1" {{#datefromchecked}}checked{{/datefromchecked}}>
-                    <span class="hsuforum-date-time-row">
-                        <input type="date" name="datefrominput" id="datefrominput" value="{{datefromdate}}">
-                        <input type="time" name="fromtimeinput" id="fromtimeinput" value="{{datefromtime}}" step="60">
-                    </span>
-                </td>
-            </tr>
-            <tr>
-                <td class="c0">
-                    {{#str}}searchdateto, hsuforum{{/str}}
-                </td>
-                <td class="c1">
-                    <input type="checkbox" name="timetorestrict" value="1" {{#datetochecked}}checked{{/datetochecked}}>
-                    <span class="hsuforum-date-time-row">
-                        <input type="date" name="datetoinput" id="datetoinput" value="{{datetodate}}">
-                        <input type="time" name="totimeinput" id="totimeinput" value="{{datetotime}}" step="60">
-                    </span>
-                </td>
-            </tr>
+    <form id="searchform" class="hsuforum-advanced-search-form" action="{{actionurl}}" method="get">
+        <table class="searchbox table hsuforum-advanced-search-table" id="form">
             <tr>
                 <td class="c0">
                     <label for="menuforumid">{{#str}}searchwhichforums, hsuforum{{/str}}</label>
+                    <input type="hidden" value="{{courseid}}" name="id">
                 </td>
                 <td class="c1">
-                    <select name="forumid" id="menuforumid">
+                    <select class="custom-select" name="forumid" id="menuforumid">
                         {{#forumoptions}}
                             <option value="{{value}}" {{#selected}}selected{{/selected}}>{{name}}</option>
                         {{/forumoptions}}
@@ -129,7 +71,15 @@
                     <label for="subject">{{#str}}searchsubject, hsuforum{{/str}}</label>
                 </td>
                 <td class="c1">
-                    <input type="text" size="35" name="subject" id="subject" value="{{subject}}">
+                    <input class="form-control" type="text" name="subject" id="subject" value="{{subject}}" placeholder="输入主题关键词">
+                </td>
+            </tr>
+            <tr>
+                <td class="c0">
+                    <label for="words">{{#str}}searchwords, hsuforum{{/str}}</label>
+                </td>
+                <td class="c1">
+                    <input class="form-control" type="text" name="words" id="words" value="{{words}}" placeholder="输入帖子内容关键词">
                 </td>
             </tr>
             <tr>
@@ -137,11 +87,75 @@
                     <label for="user">{{#str}}searchuser, hsuforum{{/str}}</label>
                 </td>
                 <td class="c1">
-                    <input type="text" size="35" name="user" id="user" value="{{user}}">
+                    <input class="form-control" type="text" name="user" id="user" value="{{user}}" placeholder="输入作者姓名">
                 </td>
             </tr>
-            {{#tagsenabled}}
             <tr>
+                <td class="c0">
+                    {{#str}}searchdatefrom, hsuforum{{/str}}
+                </td>
+                <td class="c1 hsuforum-date-cell">
+                    <input type="checkbox" name="timefromrestrict" value="1" {{#datefromchecked}}checked{{/datefromchecked}}>
+                    <span class="hsuforum-date-time-row">
+                        <input class="form-control" type="date" name="datefrominput" id="datefrominput" value="{{datefromdate}}">
+                        <input class="form-control" type="time" name="fromtimeinput" id="fromtimeinput" value="{{datefromtime}}" step="60">
+                    </span>
+                </td>
+            </tr>
+            <tr>
+                <td class="c0">
+                    {{#str}}searchdateto, hsuforum{{/str}}
+                </td>
+                <td class="c1 hsuforum-date-cell">
+                    <input type="checkbox" name="timetorestrict" value="1" {{#datetochecked}}checked{{/datetochecked}}>
+                    <span class="hsuforum-date-time-row">
+                        <input class="form-control" type="date" name="datetoinput" id="datetoinput" value="{{datetodate}}">
+                        <input class="form-control" type="time" name="totimeinput" id="totimeinput" value="{{datetotime}}" step="60">
+                    </span>
+                </td>
+            </tr>
+            <tr class="hsuforum-search-hint-row">
+                <td colspan="2" class="submit text-center">
+                    <small class="hsuforum-search-hint">可先使用上方 6 项快速筛选，更多条件可按需展开。</small>
+                </td>
+            </tr>
+            <tr>
+                <td colspan="2" class="submit text-center">
+                    <button type="button" id="hsuforum-more-criteria-toggle" class="btn btn-link hsuforum-more-toggle" aria-expanded="false" aria-controls="hsuforum-extra-criteria">
+                        <span id="hsuforum-more-criteria-icon">▶</span>
+                        {{#str}}more, hsuforum{{/str}}
+                    </button>
+                </td>
+            </tr>
+
+            <tr class="hsuforum-extra-criteria" id="hsuforum-extra-criteria">
+                <td class="c0">
+                    <label for="phrase">{{#str}}searchphrase, hsuforum{{/str}}</label>
+                </td>
+                <td class="c1">
+                    <input class="form-control" type="text" name="phrase" id="phrase" value="{{phrase}}" placeholder="输入完整短语">
+                </td>
+            </tr>
+            <tr class="hsuforum-extra-criteria">
+                <td class="c0">
+                    <label for="notwords">{{#str}}searchnotwords, hsuforum{{/str}}</label>
+                </td>
+                <td class="c1">
+                    <input class="form-control" type="text" name="notwords" id="notwords" value="{{notwords}}" placeholder="输入要排除的词">
+                </td>
+            </tr>
+            {{#showfullwords}}
+                <tr class="hsuforum-extra-criteria">
+                    <td class="c0">
+                        <label for="fullwords">{{#str}}searchfullwords, hsuforum{{/str}}</label>
+                    </td>
+                    <td class="c1">
+                        <input class="form-control" type="text" name="fullwords" id="fullwords" value="{{fullwords}}" placeholder="输入完整单词">
+                    </td>
+                </tr>
+            {{/showfullwords}}
+            {{#tagsenabled}}
+            <tr class="hsuforum-extra-criteria">
                 <td class="c0">
                     <label for="tags">{{#str}}searchtags, hsuforum{{/str}}</label>
                 </td>
@@ -158,7 +172,7 @@
             <tr>
                 <td colspan="2" class="submit">
                     <div class="text-center">
-                        <input type="submit" value="{{#cleanstr}}searchforums, hsuforum{{/cleanstr}}">
+                        <input class="btn btn-primary hsuforum-search-submit" type="submit" value="{{#cleanstr}}searchforums, hsuforum{{/cleanstr}}">
                     </div>
                 </td>
             </tr>
@@ -181,6 +195,18 @@
         toggleDateFields(['datetoinput', 'totimeinput'], !$("#searchform input[name='timetorestrict']").prop('checked'));
         $("#searchform input[name='timetorestrict']").click(function() {
             toggleDateFields(['datetoinput', 'totimeinput'], !this.checked);
+        });
+
+        var $toggle = $('#hsuforum-more-criteria-toggle');
+        var $icon = $('#hsuforum-more-criteria-icon');
+        var $extraRows = $('#searchform .hsuforum-extra-criteria');
+
+        $extraRows.hide();
+        $toggle.on('click', function() {
+            var expanded = $toggle.attr('aria-expanded') === 'true';
+            $toggle.attr('aria-expanded', expanded ? 'false' : 'true');
+            $icon.text(expanded ? '▶' : '▼');
+            $extraRows.toggle(!expanded);
         });
     });
 {{/js}}

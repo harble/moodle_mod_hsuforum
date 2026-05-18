@@ -1219,3 +1219,9 @@ li.activity.modtype_hsuforum .activityiconcontainer {
 .modchoosercontainer div[data-internal="hsuforum"] .modicon_hsuforum img {
     height: 25px;
 }
+
+.forum-search-text {
+    border-radius: var(--bs-border-radius) 0.5rem;
+    border: solid 1px gray;
+    height: 34px;
+}

@@ -1466,6 +1466,7 @@ HTML;
             $ownpost = true;
             $post = new stdClass();
             $post->parent = false;
+            $post->reveal = 1;
             $legend = get_string('addyourdiscussion', 'hsuforum');
             $thresholdwarning = hsuforum_check_throttling($forum, $cm);
             if (!empty($thresholdwarning)) {
@@ -1609,7 +1610,7 @@ HTML;
         $data += array(
             'itemid'        => 0,
             'privatereply'  => 0,
-            'reveal'        => 0,
+            'reveal'        => 1,
             'messageformat' => FORMAT_HTML,
         );
         $actionurl = new \core\url('/mod/hsuforum/route.php', array(

@@ -5677,8 +5677,9 @@ function hsuforum_print_latest_discussions($course, $forum, $maxdiscussions=-1, 
     }
 
     // Hide search when no discussions to search.
+    $searchform = '';
     if ($discussions) {
-        echo hsuforum_search_form($course, $forum->id);
+        $searchform = hsuforum_search_form($course, $forum->id);
     }
 
     // Sort/Filter options
@@ -5695,10 +5696,19 @@ function hsuforum_print_latest_discussions($course, $forum, $maxdiscussions=-1, 
         $sortselect = $renderer->discussion_sorting($cm, $dsort);
     }
 
-    if ($groupselect || $sortselect && $forum->type != 'blog') {
-        echo "<div id='hsuforum-filter-options'>";
-        echo $groupselect;
-        echo $sortselect;
+    $showfilteroptions = $groupselect || ($sortselect && $forum->type != 'blog');
+
+    if ($searchform || $showfilteroptions) {
+        echo "<div class='hsuforum-search-filter-row'>";
+        echo $searchform;
+
+        if ($showfilteroptions) {
+            echo "<div id='hsuforum-filter-options'>";
+            echo $groupselect;
+            echo $sortselect;
+            echo "</div>";
+        }
+
         echo "</div>";
     }
 

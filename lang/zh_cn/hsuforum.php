@@ -183,12 +183,12 @@ $string['emaildigestdefault'] = '默认（{$a}）';
 $string['emaildigestoffshort'] = '不使用摘要';
 $string['emaildigestsubjectsshort'] = '仅主题';
 $string['emaildigesttype'] = '邮件摘要选项';
-$string['emaildigesttype_help'] = 'The type of notification that you will receive for each forum.
+$string['emaildigesttype_help'] = '你将为每个论坛接收的通知类型。
 
-* Default - follow the digest setting found in your user profile. If you update your profile, then that change will be reflected here too;
-* No digest - you will receive one e-mail per forum post;
-* Digest - complete posts - you will receive one digest e-mail per day containing the complete contents of each forum post;
-* Digest - subjects only - you will receive one digest e-mail per day containing just the subject of each forum post.
+* 默认 - 使用你在个人资料中的摘要设置。如果你更新了个人资料，此处也会同步更新；
+* 不使用摘要 - 每有一条论坛帖子，你都会收到一封邮件；
+* 摘要 - 完整帖子 - 你每天会收到一封摘要邮件，包含每条论坛帖子的完整内容；
+* 摘要 - 仅主题 - 你每天会收到一封摘要邮件，只包含每条论坛帖子的主题。
 ';
 $string['emaildigestupdated'] = '论坛 \'{$a->forum}\' 的邮件摘要选项已更改为 \'{$a->maildigesttitle}\'。{$a->maildigestdescription}';
 $string['emaildigestupdated_default'] = '您的默认设置 \'{$a->maildigesttitle}\' 已用于论坛 \'{$a->forum}\'。{$a->maildigestdescription}。';
@@ -601,7 +601,7 @@ $string['to'] = '收件人';
 $string['trackforum'] = '躺读未读帖子';
 $string['trackreadposts_header'] = '论坛躺读';
 $string['unread'] = '未读';
-$string['unreadposts'] = '未读帖子';
+$string['unreadposts'] = '未读';
 $string['unreadpostsnumber'] = '{$a} 条未读帖子';
 $string['unreadpostsone'] = '1 条未读帖子';
 $string['unsubscribe'] = '取消订阅此论坛';
@@ -632,7 +632,7 @@ $string['anonymousfirstnamephonetic'] = '匿名';
 $string['anonymouslastnamephonetic'] = '用户';
 $string['anonymousmiddlename'] = '';
 $string['anonymousalternatename'] = '匿名';
-$string['reveal'] = '在此帖中显示你的身份';
+$string['reveal'] = '在此帖中显示我的姓名';
 $string['reveal_help'] = '勾选后，你的姓名将显示在帖子中，不再匿名。';
 $string['hsuforum:revealpost'] = '在匿名论坛中显示自己的身份';
 $string['hsuforum:viewflags'] = '查看帖子标记';

@@ -150,7 +150,7 @@ if (!empty($forum)) {      // User is starting a new discussion in a forum.
     $post->parent        = 0;
     $post->subject       = '';
     $post->userid        = $USER->id;
-    $post->reveal        = 0;
+    $post->reveal        = 1;
     $post->privatereply  = 0;
     $post->message       = '';
     $post->messageformat = editors_get_preferred_format();
@@ -232,7 +232,7 @@ if (!empty($forum)) {      // User is starting a new discussion in a forum.
     $post->forum       = $forum->id;
     $post->discussion  = $parent->discussion;
     $post->parent      = $parent->id;
-    $post->reveal      = 0;
+    $post->reveal      = 1;
     $post->privatereply= 0;
     $post->subject     = $parent->subject;
     $post->userid      = $USER->id;

@@ -595,7 +595,6 @@ FUN WITH FORMS
     #page-mod-hsuforum-view .groupselector {
         text-align: right;
     }
-
     /* GRID ME UP */
     .hsuforum-thread-author {
         width: 18%;
@@ -695,6 +694,15 @@ FUN WITH FORMS
     }
     .hsuforum-post[data-depth="4"] .hsuforum-post-wrapper {
         margin-left: 31.45%;
+    }
+}
+
+@media all and (max-width: 47.99em) {
+    #page-mod-hsuforum-index table th.c0,
+    #page-mod-hsuforum-index table td.c0,
+    #page-mod-hsuforum-index table th.c2,
+    #page-mod-hsuforum-index table td.c2 {
+        display: none;
     }
 }
 

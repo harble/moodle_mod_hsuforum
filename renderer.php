@@ -1581,7 +1581,7 @@ HTML;
      * @return string
      */
     public function simple_edit_post($cm, $isedit = false, $postid = 0, array $data = array()) {
-        global $DB, $CFG, $USER, $OUTPUT;
+        global $DB, $CFG, $USER, $OUTPUT, $PAGE;
 
         $context = context_module::instance($cm->id);
         $forum = hsuforum_get_cm_forum($cm);
@@ -1603,7 +1603,9 @@ HTML;
             // It is a reply, AKA new post
             $ownpost = true;
             $param  = 'reply';
-            $legend = get_string('addareply', 'hsuforum');
+            $legend = ($PAGE->pagetype === 'mod-hsuforum-discuss')
+                ? get_string('addyourdiscussion', 'hsuforum')
+                : get_string('addareply', 'hsuforum');
             $thresholdwarning = hsuforum_check_throttling($forum, $cm);
             if (!empty($thresholdwarning)) {
                 $message = get_string($thresholdwarning->errorcode, $thresholdwarning->module, $thresholdwarning->additional);
@@ -1819,7 +1821,7 @@ HTML;
      * @author Mark Nielsen
      */
     public function post_get_commands($post, $discussion, $cm, $canreply) {
-        global $CFG, $USER, $OUTPUT;
+        global $CFG, $USER, $OUTPUT, $PAGE;
 
         $discussionlink = new \core\url('/mod/hsuforum/discuss.php', array('d' => $post->discussion));
         $ownpost        = (isloggedin() && $post->userid == $USER->id);
@@ -1834,9 +1836,12 @@ HTML;
         if ($canreply && empty($post->privatereply)) {
             $postuser   = hsuforum_extract_postuser($post, $forum, context_module::instance($cm->id));
             $replytitle = get_string('replybuttontitle', 'hsuforum', strip_tags($postuser->fullname));
+            $replylabel = ($PAGE->pagetype === 'mod-hsuforum-discuss' && empty($post->parent))
+                ? get_string('discussion', 'hsuforum')
+                : get_string('reply', 'hsuforum');
             $commands['reply'] = \core\output\html_writer::link(
                 new \core\url('/mod/hsuforum/post.php', array('reply' => $post->id)),
-                get_string('reply', 'hsuforum'),
+                $replylabel,
                 array(
                     'title' => $replytitle,
                     'class' => 'hsuforum-reply-link btn btn-default',

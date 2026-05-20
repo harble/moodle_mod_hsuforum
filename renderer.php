@@ -199,7 +199,7 @@ class mod_hsuforum_renderer extends \core\output\plugin_renderer_base {
             // We need to verify that these outputs only appears for Snap, Boost will only display the manage forum subscriptions link.
             if (get_config('core', 'theme') == 'snap') {
                 // Outputs for the Url's inside divs to have a correct position inside the page.
-                $output .= '<ul class="text-end"><hr>';
+                $output .= '<ul class="text-end">&nbsp;';
                 $output .= '<li class="managesubscriptions-url">';
                 $output .= \core\output\html_writer::link($manageforumsubscriptionsurl, $manageforumsubscriptions, ['class' => 'btn btn-link']);
                 $output .= '</li>';
@@ -214,7 +214,7 @@ class mod_hsuforum_renderer extends \core\output\plugin_renderer_base {
                 $output .= '</li>';
                 $output .= '</ul>';
             } else {
-                $output .= '<ul class="text-end"><hr>';
+                $output .= '<ul class="text-end">&nbsp;';
                 $output .= '<li class="managesubscriptions-url">';
                 $output .= \core\output\html_writer::link($manageforumsubscriptionsurl, $manageforumsubscriptions, ['class' => 'btn btn-link']);
                 $output .= '</li>';
@@ -553,10 +553,17 @@ class mod_hsuforum_renderer extends \core\output\plugin_renderer_base {
             $xreplies = hsuforum_xreplies($d->replies);
             $replies = "<span class='hsuforum-replycount'>$xreplies</span>";
         }
+        $fullnametitle = s(strip_tags($d->fullname));
         if (!empty($d->userurl)) {
-            $byuser = \core\output\html_writer::link($d->userurl, $d->fullname);
+            $byuser = \core\output\html_writer::link($d->userurl, $d->fullname, [
+                'class' => 'hsuforum-thread-author-name',
+                'title' => $fullnametitle,
+            ]);
         } else {
-            $byuser = \core\output\html_writer::tag('span', $d->fullname);
+            $byuser = \core\output\html_writer::tag('span', $d->fullname, [
+                'class' => 'hsuforum-thread-author-name',
+                'title' => $fullnametitle,
+            ]);
         }
         $unread = '';
         $unreadclass = '';

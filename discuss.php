@@ -50,6 +50,7 @@
     $postid = optional_param('postid', 0, PARAM_INT);        // Used for tracking read posts if user initiated.
     $pin    = optional_param('pin', -1, PARAM_INT);          // If set, pin or unpin this discussion.
     $warned = optional_param('warned', 0, PARAM_INT);
+    $embed  = optional_param('embed', 0, PARAM_BOOL);
 
     $config = get_config('hsuforum');
 
@@ -428,4 +429,110 @@
     $editor = new advanced_editor($modcontext);
     echo '<div id="preload-container" style="display: none;"><div id="preload-container-editor">';
     echo $renderer->render_advanced_editor($editor, 'preload-container-editor', 0).'</div></div>';
+
+    if (!empty($embed)) {
+        echo '<style>
+            body.embed-mode,
+            body.embed-mode #page,
+            body.embed-mode #page-content,
+            body.embed-mode #region-main-box,
+            body.embed-mode #region-main {
+                margin-top: 0 !important;
+                padding-top: 0 !important;
+            }
+            body.embed-mode #page-content > :first-child,
+            body.embed-mode #region-main > :first-child {
+                margin-top: 0 !important;
+            }
+            body.embed-mode #topofscroll {
+                margin-top: -1rem !important;
+            }
+        </style>';
+
+        echo '<script>
+            document.addEventListener("DOMContentLoaded", function() {
+                document.body.classList.add("embed-mode");
+                var pageContent = document.getElementById("page-content");
+                if (!pageContent) {
+                    return;
+                }
+
+                var keep = new Set();
+                var current = pageContent;
+                while (current) {
+                    keep.add(current);
+                    current = current.parentElement;
+                }
+
+                var stack = [document.body];
+                while (stack.length) {
+                    var node = stack.pop();
+                    var children = Array.prototype.slice.call(node.children || []);
+                    children.forEach(function(child) {
+                        if (!keep.has(child) && !pageContent.contains(child)) {
+                            child.style.display = "none";
+                            return;
+                        }
+                        stack.push(child);
+                    });
+                }
+
+                var selectorsToHide = ".drawer-toggler.drawer-left-toggle.open-nav.d-print-none, " +
+                    ".drawer-toggler.drawer-right-toggle.ms-auto.d-print-none";
+                var togglers = document.querySelectorAll(selectorsToHide);
+                Array.prototype.forEach.call(togglers, function(el) {
+                    el.style.display = "none";
+                });
+
+                var forceLinkBlank = function(link) {
+                    if (!link) {
+                        return;
+                    }
+                    link.setAttribute("target", "_blank");
+                    var rel = (link.getAttribute("rel") || "").split(/\s+/).filter(Boolean);
+                    if (rel.indexOf("noopener") === -1) {
+                        rel.push("noopener");
+                    }
+                    if (rel.indexOf("noreferrer") === -1) {
+                        rel.push("noreferrer");
+                    }
+                    link.setAttribute("rel", rel.join(" "));
+                };
+
+                var links = pageContent.querySelectorAll("a");
+                Array.prototype.forEach.call(links, function(link) {
+                    forceLinkBlank(link);
+                });
+
+                pageContent.addEventListener("click", function(event) {
+                    var target = event.target;
+                    var link = target && target.closest ? target.closest("a") : null;
+                    if (!link || !pageContent.contains(link)) {
+                        return;
+                    }
+                    forceLinkBlank(link);
+                }, true);
+
+                var observer = new MutationObserver(function(mutations) {
+                    mutations.forEach(function(mutation) {
+                        var nodes = Array.prototype.slice.call(mutation.addedNodes || []);
+                        nodes.forEach(function(node) {
+                            if (!node || node.nodeType !== 1 || !pageContent.contains(node)) {
+                                return;
+                            }
+                            if (node.matches && node.matches("a")) {
+                                forceLinkBlank(node);
+                            }
+                            var nested = node.querySelectorAll ? node.querySelectorAll("a") : [];
+                            Array.prototype.forEach.call(nested, function(link) {
+                                forceLinkBlank(link);
+                            });
+                        });
+                    });
+                });
+                observer.observe(pageContent, {childList: true, subtree: true});
+            });
+        </script>';
+    }
+
     echo $OUTPUT->footer();

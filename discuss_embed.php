@@ -31,6 +31,41 @@ use mod_hsuforum\local;
 require_once(__DIR__ . '/../../config.php');
 require_once($CFG->dirroot . '/mod/hsuforum/lib.php');
 
+/**
+ * Output a minimal, iframe-friendly notice page without Moodle header/footer.
+ *
+ * @param string $message Localized message to display.
+ * @return void
+ */
+function mod_hsuforum_discuss_embed_notice(string $message): void {
+    header('Content-Type: text/html; charset=utf-8');
+    echo '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">';
+    echo '<meta name="viewport" content="width=device-width, initial-scale=1">';
+    echo '<title>' . s(get_string('discussion', 'hsuforum')) . '</title>';
+    echo '<style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            background: #fff;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+        .discuss-embed-notice {
+            margin: 16px;
+            padding: 12px 14px;
+            border: 1px solid #e5e7eb;
+            border-left: 4px solid #f59e0b;
+            border-radius: 8px;
+            background: #fffbeb;
+            color: #374151;
+            line-height: 1.5;
+            font-size: 14px;
+        }
+    </style></head><body>';
+    echo '<div class="discuss-embed-notice">' . s($message) . '</div>';
+    echo '</body></html>';
+    exit;
+}
+
 $iid = required_param('iid', PARAM_INT);
 $fid = required_param('fid', PARAM_INT);
 
@@ -52,6 +87,10 @@ require_capability('mod/hsuforum:viewdiscussion', $forumcontext);
 $datacm = get_coursemodule_from_instance('data', $data->id, $data->course, false, MUST_EXIST);
 $datacontext = context_module::instance($datacm->id);
 require_capability('mod/data:viewentry', $datacontext);
+
+if (!empty($data->approval) && empty($record->approved)) {
+    mod_hsuforum_discuss_embed_notice(get_string('discussembedrequiresapproval', 'hsuforum'));
+}
 
 // Build discussion subject from the data field named "subject".
 // If unavailable, fallback to the first non-empty content, then a generic title.
@@ -100,7 +139,7 @@ if ($subject === '') {
 }
 
 $subject = core_text::substr($subject, 0, 255);
-$message = '欢迎在此讨论区咨询或评论';
+$message = get_string('discussembedwelcomemessage', 'hsuforum');
 
 $creatorid = (int)$record->userid;
 if (!$DB->record_exists('user', ['id' => $creatorid])) {

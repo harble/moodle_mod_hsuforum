@@ -239,5 +239,24 @@
         <INDEX NAME="forumusergrade" UNIQUE="true" FIELDS="forum, itemnumber, userid"/>
       </INDEXES>
     </TABLE>
+    <TABLE NAME="hsuforum_data_discussion_map" COMMENT="Mapping between mod_data records and hsuforum discussions for embedded discuss view">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="iid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="fid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="discussionid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="iid" TYPE="foreign" FIELDS="iid" REFTABLE="data_records" REFFIELDS="id"/>
+        <KEY NAME="fid" TYPE="foreign" FIELDS="fid" REFTABLE="hsuforum" REFFIELDS="id"/>
+        <KEY NAME="discussionid" TYPE="foreign" FIELDS="discussionid" REFTABLE="hsuforum_discussions" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="iid-fid" UNIQUE="true" FIELDS="iid, fid"/>
+      </INDEXES>
+    </TABLE>
   </TABLES>
 </XMLDB>

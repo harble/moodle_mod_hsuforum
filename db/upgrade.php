@@ -429,6 +429,30 @@ function xmldb_hsuforum_upgrade($oldversion) {
         upgrade_mod_savepoint(true, 2024091701, 'hsuforum');
     }
 
+    if ($oldversion < 2026052000) {
+        $table = new xmldb_table('hsuforum_data_discussion_map');
+
+        if (!$dbman->table_exists($table)) {
+            $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+            $table->add_field('iid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+            $table->add_field('fid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+            $table->add_field('discussionid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+            $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+            $table->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+
+            $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+            $table->add_key('iid', XMLDB_KEY_FOREIGN, ['iid'], 'data_records', ['id']);
+            $table->add_key('fid', XMLDB_KEY_FOREIGN, ['fid'], 'hsuforum', ['id']);
+            $table->add_key('discussionid', XMLDB_KEY_FOREIGN, ['discussionid'], 'hsuforum_discussions', ['id']);
+
+            $table->add_index('iid-fid', XMLDB_INDEX_UNIQUE, ['iid', 'fid']);
+
+            $dbman->create_table($table);
+        }
+
+        upgrade_mod_savepoint(true, 2026052000, 'hsuforum');
+    }
+
     return true;
 }
 

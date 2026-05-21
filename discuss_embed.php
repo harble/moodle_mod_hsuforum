@@ -70,6 +70,215 @@ function mod_hsuforum_discuss_embed_notice(string $message): void {
 }
 
 /**
+ * Build seed data for course mode (cid + fid).
+ *
+ * @param int $cid Source course id.
+ * @param stdClass $forum Target forum record.
+ * @return array
+ */
+function mod_hsuforum_discuss_embed_prepare_cid_seed(int $cid, stdClass $forum): array {
+    global $DB;
+
+    $sourcecourse = $DB->get_record('course', ['id' => $cid], '*', MUST_EXIST);
+    $sourcecategory = $DB->get_record('course_categories', ['id' => $sourcecourse->category], '*', IGNORE_MISSING);
+
+    $subjectparts = [];
+    if (!empty($sourcecategory->name)) {
+        $subjectparts[] = trim(strip_tags((string)$sourcecategory->name));
+    }
+    if (!empty($sourcecourse->fullname)) {
+        $subjectparts[] = trim(strip_tags((string)$sourcecourse->fullname));
+    }
+
+    $subject = implode(' / ', array_filter($subjectparts));
+    if ($subject === '') {
+        $subject = get_string('discussion', 'hsuforum') . ' #' . $sourcecourse->id;
+    }
+
+    return [
+        'subject' => core_text::substr($subject, 0, 255),
+        'creatorid' => mod_hsuforum_discuss_embed_resolve_course_creatorid($sourcecourse),
+        'mappingtable' => 'hsuforum_course_discussion_map',
+        'mappingkey' => ['cid' => $sourcecourse->id, 'fid' => $forum->id],
+        'discussiongroupid' => -1,
+    ];
+}
+
+/**
+ * Build seed data for data-record mode (iid + fid).
+ *
+ * @param int $iid Source data record id.
+ * @param stdClass $forum Target forum record.
+ * @return array
+ */
+function mod_hsuforum_discuss_embed_prepare_iid_seed(int $iid, stdClass $forum): array {
+    global $DB, $USER;
+
+    $record = $DB->get_record('data_records', ['id' => $iid], '*', MUST_EXIST);
+    $data = $DB->get_record('data', ['id' => $record->dataid], '*', MUST_EXIST);
+
+    // Keep data entry permission checks in iid mode only.
+    $datacm = get_coursemodule_from_instance('data', $data->id, $data->course, false, MUST_EXIST);
+    $datacontext = context_module::instance($datacm->id);
+    require_capability('mod/data:viewentry', $datacontext);
+
+    // If approval is enabled and record not approved, show minimal iframe notice.
+    if (!empty($data->approval) && empty($record->approved)) {
+        mod_hsuforum_discuss_embed_notice(get_string('discussembedrequiresapproval', 'hsuforum'));
+    }
+
+    // Prefer field name "subject" as title source.
+    $subject = '';
+    $subjectrecord = $DB->get_record_sql(
+        "SELECT dc.content
+           FROM {data_content} dc
+           JOIN {data_fields} df ON df.id = dc.fieldid
+          WHERE dc.recordid = :recordid
+            AND df.dataid = :dataid
+            AND " . $DB->sql_compare_text('df.name') . " = :subjectname",
+        [
+            'recordid' => $record->id,
+            'dataid' => $data->id,
+            'subjectname' => 'subject',
+        ]
+    );
+
+    if (!empty($subjectrecord->content)) {
+        $subject = trim(strip_tags((string)$subjectrecord->content));
+    }
+
+    // Fallback to first non-empty content.
+    if ($subject === '') {
+        $firstcontent = $DB->get_record_sql(
+            "SELECT dc.content
+               FROM {data_content} dc
+               JOIN {data_fields} df ON df.id = dc.fieldid
+              WHERE dc.recordid = :recordid
+                AND df.dataid = :dataid
+                AND dc.content IS NOT NULL
+                AND dc.content <> ''
+           ORDER BY dc.id ASC",
+            [
+                'recordid' => $record->id,
+                'dataid' => $data->id,
+            ]
+        );
+
+        if (!empty($firstcontent->content)) {
+            $subject = trim(strip_tags((string)$firstcontent->content));
+        }
+    }
+
+    if ($subject === '') {
+        $subject = get_string('discussion', 'hsuforum') . ' #' . $record->id;
+    }
+
+    $creatorid = (int)$record->userid;
+    if (!$DB->record_exists('user', ['id' => $creatorid])) {
+        $creatorid = (int)$USER->id;
+    }
+
+    return [
+        'subject' => core_text::substr($subject, 0, 255),
+        'creatorid' => $creatorid,
+        'mappingtable' => 'hsuforum_data_discussion_map',
+        'mappingkey' => ['iid' => $record->id, 'fid' => $forum->id],
+        'discussiongroupid' => !empty($record->groupid) ? (int)$record->groupid : -1,
+    ];
+}
+
+/**
+ * Create or update mapped discussion and return discussion id.
+ *
+ * @param stdClass $forum Target forum record.
+ * @param array $seed Prepared seed data from mode-specific builder.
+ * @return int
+ */
+function mod_hsuforum_discuss_embed_resolve_discussionid(stdClass $forum, array $seed): int {
+    global $DB, $USER;
+
+    $mappingtable = $seed['mappingtable'];
+    $mappingkey = $seed['mappingkey'];
+    $subject = $seed['subject'];
+    $creatorid = (int)$seed['creatorid'];
+    $discussiongroupid = (int)$seed['discussiongroupid'];
+    $message = get_string('discussembedwelcomemessage', 'hsuforum');
+
+    $discussionid = null;
+    $timenow = time();
+
+    // Keep map lookup/create/update in one transaction for consistency.
+    $transaction = $DB->start_delegated_transaction();
+    $map = $DB->get_record($mappingtable, $mappingkey);
+
+    // Reuse previously mapped discussion when possible and sync title if changed.
+    if (!empty($map)) {
+        $existingdiscussion = $DB->get_record('hsuforum_discussions', ['id' => $map->discussionid, 'forum' => $forum->id]);
+
+        if (!empty($existingdiscussion)) {
+            $discussionid = (int)$existingdiscussion->id;
+
+            if (trim((string)$existingdiscussion->name) !== $subject) {
+                $existingdiscussion->name = $subject;
+                $existingdiscussion->timemodified = $timenow;
+                $existingdiscussion->usermodified = $USER->id;
+                $DB->update_record('hsuforum_discussions', $existingdiscussion);
+
+                if (!empty($existingdiscussion->firstpost)) {
+                    $firstpost = $DB->get_record('hsuforum_posts', ['id' => $existingdiscussion->firstpost]);
+                    if (!empty($firstpost)) {
+                        $firstpost->subject = $subject;
+                        $firstpost->modified = $timenow;
+                        $DB->update_record('hsuforum_posts', $firstpost);
+                    }
+                }
+            }
+
+            $map->timemodified = $timenow;
+            $DB->update_record($mappingtable, $map);
+        }
+    }
+
+    // Create discussion when map is empty or points to missing discussion.
+    if (empty($discussionid)) {
+        $discussion = new stdClass();
+        $discussion->course = $forum->course;
+        $discussion->forum = $forum->id;
+        $discussion->name = $subject;
+        $discussion->message = $message;
+        $discussion->messageformat = FORMAT_HTML;
+        $discussion->messagetrust = 0;
+        $discussion->mailnow = 0;
+        $discussion->reveal = 1;
+        $discussion->groupid = $discussiongroupid;
+        $discussion->timestart = 0;
+        $discussion->timeend = 0;
+        $discussion->pinned = 0;
+
+        $discussionid = (int)hsuforum_add_discussion($discussion, null, null, $creatorid);
+
+        if (empty($map)) {
+            $map = new stdClass();
+            foreach ($mappingkey as $field => $value) {
+                $map->{$field} = $value;
+            }
+            $map->discussionid = $discussionid;
+            $map->timecreated = $timenow;
+            $map->timemodified = $timenow;
+            $DB->insert_record($mappingtable, $map);
+        } else {
+            $map->discussionid = $discussionid;
+            $map->timemodified = $timenow;
+            $DB->update_record($mappingtable, $map);
+        }
+    }
+
+    $transaction->allow_commit();
+
+    return $discussionid;
+}
+
+/**
  * Resolve the creator user id for a course discussion seed.
  *
  * @param stdClass $course
@@ -137,168 +346,12 @@ $forumcontext = context_module::instance($cm->id);
 require_course_login($course, true, $cm);
 require_capability('mod/hsuforum:viewdiscussion', $forumcontext);
 
-$message = get_string('discussembedwelcomemessage', 'hsuforum');
-$subject = '';
-$creatorid = (int)$USER->id;
-$mappingtable = '';
-$mappingkey = [];
-$discussiongroupid = -1;
+// Build mode-specific seed data.
+$seed = $usecidmode
+    ? mod_hsuforum_discuss_embed_prepare_cid_seed($cid, $forum)
+    : mod_hsuforum_discuss_embed_prepare_iid_seed($iid, $forum);
 
-if ($usecidmode) {
-    $sourcecourse = $DB->get_record('course', ['id' => $cid], '*', MUST_EXIST);
-    $sourcecategory = $DB->get_record('course_categories', ['id' => $sourcecourse->category], '*', IGNORE_MISSING);
-
-    $subjectparts = [];
-    if (!empty($sourcecategory->name)) {
-        $subjectparts[] = trim(strip_tags((string)$sourcecategory->name));
-    }
-    if (!empty($sourcecourse->fullname)) {
-        $subjectparts[] = trim(strip_tags((string)$sourcecourse->fullname));
-    }
-    $subject = implode(' / ', array_filter($subjectparts));
-    if ($subject === '') {
-        $subject = get_string('discussion', 'hsuforum') . ' #' . $sourcecourse->id;
-    }
-
-    $creatorid = mod_hsuforum_discuss_embed_resolve_course_creatorid($sourcecourse);
-    $mappingtable = 'hsuforum_course_discussion_map';
-    $mappingkey = ['cid' => $sourcecourse->id, 'fid' => $forum->id];
-} else {
-    $record = $DB->get_record('data_records', ['id' => $iid], '*', MUST_EXIST);
-    $data = $DB->get_record('data', ['id' => $record->dataid], '*', MUST_EXIST);
-
-    $datacm = get_coursemodule_from_instance('data', $data->id, $data->course, false, MUST_EXIST);
-    $datacontext = context_module::instance($datacm->id);
-    require_capability('mod/data:viewentry', $datacontext);
-
-    if (!empty($data->approval) && empty($record->approved)) {
-        mod_hsuforum_discuss_embed_notice(get_string('discussembedrequiresapproval', 'hsuforum'));
-    }
-
-    $subjectrecord = $DB->get_record_sql(
-        "SELECT dc.content
-           FROM {data_content} dc
-           JOIN {data_fields} df ON df.id = dc.fieldid
-          WHERE dc.recordid = :recordid
-            AND df.dataid = :dataid
-            AND " . $DB->sql_compare_text('df.name') . " = :subjectname",
-        [
-            'recordid' => $record->id,
-            'dataid' => $data->id,
-            'subjectname' => 'subject',
-        ]
-    );
-
-    if (!empty($subjectrecord->content)) {
-        $subject = trim(strip_tags((string)$subjectrecord->content));
-    }
-
-    if ($subject === '') {
-        $firstcontent = $DB->get_record_sql(
-            "SELECT dc.content
-               FROM {data_content} dc
-               JOIN {data_fields} df ON df.id = dc.fieldid
-              WHERE dc.recordid = :recordid
-                AND df.dataid = :dataid
-                AND dc.content IS NOT NULL
-                AND dc.content <> ''
-           ORDER BY dc.id ASC",
-            [
-                'recordid' => $record->id,
-                'dataid' => $data->id,
-            ]
-        );
-
-        if (!empty($firstcontent->content)) {
-            $subject = trim(strip_tags((string)$firstcontent->content));
-        }
-    }
-
-    if ($subject === '') {
-        $subject = get_string('discussion', 'hsuforum') . ' #' . $record->id;
-    }
-
-    $creatorid = (int)$record->userid;
-    if (!$DB->record_exists('user', ['id' => $creatorid])) {
-        $creatorid = (int)$USER->id;
-    }
-    $mappingtable = 'hsuforum_data_discussion_map';
-    $mappingkey = ['iid' => $record->id, 'fid' => $forum->id];
-    $discussiongroupid = !empty($record->groupid) ? (int)$record->groupid : -1;
-}
-
-$subject = core_text::substr($subject, 0, 255);
-
-$discussionid = null;
-$timenow = time();
-
-// Keep map lookup/create/update in one transaction for consistency.
-$transaction = $DB->start_delegated_transaction();
-$map = $DB->get_record($mappingtable, $mappingkey);
-
-// Reuse previously mapped discussion when possible and sync title if it changed.
-if (!empty($map)) {
-    $existingdiscussion = $DB->get_record('hsuforum_discussions', ['id' => $map->discussionid, 'forum' => $forum->id]);
-
-    if (!empty($existingdiscussion)) {
-        $discussionid = (int)$existingdiscussion->id;
-
-        if (trim((string)$existingdiscussion->name) !== $subject) {
-            $existingdiscussion->name = $subject;
-            $existingdiscussion->timemodified = $timenow;
-            $existingdiscussion->usermodified = $USER->id;
-            $DB->update_record('hsuforum_discussions', $existingdiscussion);
-
-            if (!empty($existingdiscussion->firstpost)) {
-                $firstpost = $DB->get_record('hsuforum_posts', ['id' => $existingdiscussion->firstpost]);
-                if (!empty($firstpost)) {
-                    $firstpost->subject = $subject;
-                    $firstpost->modified = $timenow;
-                    $DB->update_record('hsuforum_posts', $firstpost);
-                }
-            }
-        }
-
-        $map->timemodified = $timenow;
-        $DB->update_record('hsuforum_data_discussion_map', $map);
-    }
-}
-
-// Create a new discussion if no valid mapped discussion exists.
-if (empty($discussionid)) {
-    $discussion = new stdClass();
-    $discussion->course = $forum->course;
-    $discussion->forum = $forum->id;
-    $discussion->name = $subject;
-    $discussion->message = $message;
-    $discussion->messageformat = FORMAT_HTML;
-    $discussion->messagetrust = 0;
-    $discussion->mailnow = 0;
-    $discussion->reveal = 1;
-    $discussion->groupid = $discussiongroupid;
-    $discussion->timestart = 0;
-    $discussion->timeend = 0;
-    $discussion->pinned = 0;
-
-    $discussionid = (int)hsuforum_add_discussion($discussion, null, null, $creatorid);
-
-    if (empty($map)) {
-        $map = new stdClass();
-        foreach ($mappingkey as $field => $value) {
-            $map->{$field} = $value;
-        }
-        $map->discussionid = $discussionid;
-        $map->timecreated = $timenow;
-        $map->timemodified = $timenow;
-        $DB->insert_record($mappingtable, $map);
-    } else {
-        $map->discussionid = $discussionid;
-        $map->timemodified = $timenow;
-        $DB->update_record($mappingtable, $map);
-    }
-}
-
-$transaction->allow_commit();
+$discussionid = mod_hsuforum_discuss_embed_resolve_discussionid($forum, $seed);
 
 // Hand off final rendering to discuss.php in embed mode.
 $targeturl = new \core\url('/mod/hsuforum/discuss.php', ['d' => $discussionid, 'embed' => 1]);

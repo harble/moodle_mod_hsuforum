@@ -37,6 +37,7 @@ $fid = required_param('fid', PARAM_INT);
 $url = new \core\url('/mod/hsuforum/discuss_embed.php', ['iid' => $iid, 'fid' => $fid]);
 $PAGE->set_url($url);
 
+// Resolve the data entry and target forum context from incoming params.
 $record = $DB->get_record('data_records', ['id' => $iid], '*', MUST_EXIST);
 $data = $DB->get_record('data', ['id' => $record->dataid], '*', MUST_EXIST);
 
@@ -52,6 +53,8 @@ $datacm = get_coursemodule_from_instance('data', $data->id, $data->course, false
 $datacontext = context_module::instance($datacm->id);
 require_capability('mod/data:viewentry', $datacontext);
 
+// Build discussion subject from the data field named "subject".
+// If unavailable, fallback to the first non-empty content, then a generic title.
 $subject = '';
 $subjectrecord = $DB->get_record_sql(
     "SELECT dc.content
@@ -107,9 +110,11 @@ if (!$DB->record_exists('user', ['id' => $creatorid])) {
 $discussionid = null;
 $timenow = time();
 
+// Keep map lookup/create/update in one transaction for consistency.
 $transaction = $DB->start_delegated_transaction();
 $map = $DB->get_record('hsuforum_data_discussion_map', ['iid' => $record->id, 'fid' => $forum->id]);
 
+// Reuse previously mapped discussion when possible and sync title if it changed.
 if (!empty($map)) {
     $existingdiscussion = $DB->get_record('hsuforum_discussions', ['id' => $map->discussionid, 'forum' => $forum->id]);
 
@@ -137,6 +142,7 @@ if (!empty($map)) {
     }
 }
 
+// Create a new discussion if no valid mapped discussion exists.
 if (empty($discussionid)) {
     $discussion = new stdClass();
     $discussion->course = $forum->course;
@@ -146,7 +152,7 @@ if (empty($discussionid)) {
     $discussion->messageformat = FORMAT_HTML;
     $discussion->messagetrust = 0;
     $discussion->mailnow = 0;
-    $discussion->reveal = 0;
+    $discussion->reveal = 1;
     $discussion->groupid = !empty($record->groupid) ? (int)$record->groupid : -1;
     $discussion->timestart = 0;
     $discussion->timeend = 0;
@@ -171,43 +177,6 @@ if (empty($discussionid)) {
 
 $transaction->allow_commit();
 
-$discussion = $DB->get_record('hsuforum_discussions', ['id' => $discussionid], '*', MUST_EXIST);
-$post = hsuforum_get_post_full($discussion->firstpost);
-
-if (!$post) {
-    throw new \core\exception\moodle_exception('notexists', 'hsuforum', new \core\url('/mod/hsuforum/view.php', ['id' => $cm->id]));
-}
-
-if (!hsuforum_user_can_see_post($forum, $discussion, $post, null, $cm, false)) {
-    throw new \core\exception\moodle_exception('noviewdiscussionspermission', 'hsuforum');
-}
-
-hsuforum_discussion_view($forumcontext, $forum, $discussion);
-
-$PAGE->set_context($forumcontext);
-$PAGE->set_cm($cm, $course);
-$PAGE->set_pagelayout('embedded');
-$PAGE->set_title(format_string($subject));
-$PAGE->set_heading($course->fullname);
-$PAGE->add_body_class('forumtype-' . $forum->type);
-
-$renderer = $PAGE->get_renderer('mod_hsuforum');
-$PAGE->requires->js_init_call('M.mod_hsuforum.init', null, false, $renderer->get_js_module());
-
-echo $OUTPUT->header();
-echo $renderer->svg_sprite();
-
-$canreply = hsuforum_user_can_post($forum, $discussion, $USER, $cm, $course, $forumcontext);
-if (!$canreply && $forum->type !== 'news') {
-    if (isguestuser() || !isloggedin()) {
-        $canreply = true;
-    }
-    if (!is_enrolled($forumcontext) && !is_viewing($forumcontext)) {
-        $canreply = enrol_selfenrol_available($course->id);
-    }
-}
-
-$canrate = local::cached_has_capability('mod/hsuforum:rate', $forumcontext);
-hsuforum_print_discussion($course, $cm, $forum, $discussion, $post, $canreply, $canrate);
-
-echo $OUTPUT->footer();
+// Hand off final rendering to discuss.php in embed mode.
+$targeturl = new \core\url('/mod/hsuforum/discuss.php', ['d' => $discussionid, 'embed' => 1]);
+redirect($targeturl);

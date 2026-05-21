@@ -112,6 +112,10 @@
     box-sizing: border-box;
 }
 
+.box.py-3.mod-hsuforum-posts-container.article {
+    padding-top: 0.2rem !important;
+}
+
 /* consistent padding */
 .hsuforum-thread-figure,
 .hsuforum-thread-content,
@@ -464,7 +468,7 @@
 }
 /* for focus/target spacinging in themes with a fixed header */
 .hsuforum-post-wrapper {
-    padding-top: 1.4em;
+    padding-top: 0.9em;
     border-bottom: solid 1px lightgray;
 }
 
@@ -534,7 +538,6 @@
 .hsuforum-tools {
     font-family: 'Roboto', 'Open sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
     font-weight: normal;
-    padding-bottom: 1em;
 }
 .hsuforum-tools .hsuforum-reply-link {
     margin-left: 0;
@@ -622,7 +625,7 @@ FUN WITH FORMS
     border: 1px solid #999;
     padding: 0.5em 0.5em 0 0.5em;
     font-size: 99%;
-    min-height: 8em;
+    min-height: 6em;
     overflow: auto;
     resize: both;
     background-color: white;
@@ -694,6 +697,7 @@ FUN WITH FORMS
 
     .hsuforum-post-figure {
         float: left;
+        width: 15%;
     }
 
     .hsuforum-post-body,

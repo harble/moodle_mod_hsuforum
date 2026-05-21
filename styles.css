@@ -538,6 +538,7 @@
 }
 .hsuforum-tools .hsuforum-reply-link {
     margin-left: 0;
+    color: rgba(var(--bs-link-color-rgb), var(--bs-link-opacity, 1));
 }
 .hsuforum-tools a:not(.btn) {
     padding: 0 0.2em;
@@ -694,6 +695,7 @@ FUN WITH FORMS
     .hsuforum-post-figure {
         float: left;
     }
+
     .hsuforum-post-body,
     .hsuforum-reply-wrapper .editor_atto_wrap {
         float: left;
@@ -844,6 +846,10 @@ FUN WITH FORMS
 
     .hsuforum-post-figure {
         float: left;
+    }
+
+    .hsuforum-footer-reply .hsuforum-post-figure {
+        display: none;
     }
 
     .hsuforum-post-figure .userpicture {

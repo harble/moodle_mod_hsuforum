@@ -98,6 +98,7 @@ function mod_hsuforum_discuss_embed_prepare_cid_seed(int $cid, stdClass $forum):
     return [
         'subject' => core_text::substr($subject, 0, 255),
         'creatorid' => mod_hsuforum_discuss_embed_resolve_course_creatorid($sourcecourse),
+        'sourcelink' => new \core\url('/course/view.php', ['id' => $sourcecourse->id]),
         'mappingtable' => 'hsuforum_course_discussion_map',
         'mappingkey' => ['cid' => $sourcecourse->id, 'fid' => $forum->id],
         'discussiongroupid' => -1,
@@ -181,6 +182,14 @@ function mod_hsuforum_discuss_embed_prepare_iid_seed(int $iid, stdClass $forum):
     return [
         'subject' => core_text::substr($subject, 0, 255),
         'creatorid' => $creatorid,
+        'sourcelink' => new \core\url('/mod/data/view.php', [
+            'd' => (int)$data->id,
+            'advanced' => 0,
+            'paging' => 1,
+            'page' => 0,
+            'rid' => (int)$record->id,
+            'filter' => 1,
+        ]),
         'mappingtable' => 'hsuforum_data_discussion_map',
         'mappingkey' => ['iid' => $record->id, 'fid' => $forum->id],
         'discussiongroupid' => !empty($record->groupid) ? (int)$record->groupid : -1,
@@ -202,7 +211,16 @@ function mod_hsuforum_discuss_embed_resolve_discussionid(stdClass $forum, array 
     $subject = $seed['subject'];
     $creatorid = (int)$seed['creatorid'];
     $discussiongroupid = (int)$seed['discussiongroupid'];
-    $message = get_string('discussembedwelcomemessage', 'hsuforum');
+    $sourcelink = $seed['sourcelink'] ?? null;
+    if ($sourcelink instanceof \moodle_url) {
+        $contentlink = html_writer::link($sourcelink, '本处内容', [
+            'target' => '_blank',
+            'rel' => 'noopener noreferrer',
+        ]);
+        $message = '欢迎在此讨论区对' . $contentlink . '进行咨询或评论';
+    } else {
+        $message = '欢迎在此讨论区对本处内容进行咨询或评论';
+    }
 
     $discussionid = null;
     $timenow = time();

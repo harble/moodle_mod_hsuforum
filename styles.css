@@ -1320,3 +1320,31 @@ li.activity.modtype_hsuforum .activityiconcontainer {
     border: solid 1px gray;
     height: 34px;
 }
+
+/* Embed mode: reduce heading sizes by one level in hsuforum page content. */
+body.embed-mode #region-main h2 {
+    font-size: 1.1rem !important; /* stylelint-disable-line declaration-no-important */
+}
+
+body.embed-mode #region-main h4 {
+    font-size: 1.0rem !important; /* stylelint-disable-line declaration-no-important */
+}
+
+body.embed-mode #region-main .hsuforum-replycount,
+body.embed-mode #region-main .hsuforum-replycount-link,
+body.embed-mode #region-main .hsuforum-thread-replies h5 {
+    font-size: 0.85rem !important; /* stylelint-disable-line declaration-no-important */
+}
+
+body.embed-mode #region-main .hsuforum-form legend,
+body.embed-mode #region-main .hsuforum-reply-wrapper legend {
+    font-size: 1rem !important; /* stylelint-disable-line declaration-no-important */
+}
+
+@media (min-width: 992px) {
+    body.embed-mode #page.drawers.show-drawer-left {
+        margin-left: 0;
+        margin-right: 0;
+        padding-left: 1rem;
+    }
+}

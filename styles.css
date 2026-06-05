@@ -925,6 +925,10 @@ FUN WITH FORMS
     text-overflow: ellipsis;
 }
 
+.modtype_hsuforum .hsuforum-recent .snap-media-body p {
+    color: #000;
+}
+
 .modtype_hsuforum .snap-media-body  h5,
 .modtype_hsuforum .snap-media-body  h5 small,
 .block_recent_activity .snap-media-body  h5,

@@ -4293,6 +4293,9 @@ function hsuforum_add_new_post($post, $mform, $unused=null, \mod_hsuforum\upload
     // Let Moodle know that assessable content is uploaded (eg for plagiarism detection)
     hsuforum_trigger_content_uploaded_event($post, $cm, 'hsuforum_add_new_post');
 
+    $discussion = $DB->get_record('hsuforum_discussions', ['id' => $post->discussion], '*', MUST_EXIST);
+    hsuforum_sync_local_mentions($forum, $discussion, $post, $context, $cm);
+
     return $post->id;
 }
 
@@ -4368,6 +4371,8 @@ function hsuforum_update_post($newpost, $mform, &$message = null, \mod_hsuforum\
 
     // Let Moodle know that assessable content is uploaded (eg for plagiarism detection)
     hsuforum_trigger_content_uploaded_event($post, $cm, 'hsuforum_update_post');
+
+    hsuforum_sync_local_mentions($forum, $discussion, $post, $context, $cm);
 
     return true;
 }
@@ -4472,6 +4477,12 @@ function hsuforum_add_discussion($discussion, $mform=null, $unused=null, $userid
         $post->message = file_save_draft_area_files($draftid, $context->id, 'mod_hsuforum', 'post', $post->id,
             mod_hsuforum_post_form::editor_options($context, $post->id), $post->message);
         $DB->set_field('hsuforum_posts', 'message', $post->message, array('id' => $post->id));
+    }
+
+    if (!empty($cm->id)) {
+        $context = context_module::instance($cm->id);
+        $discussionrecord = $DB->get_record('hsuforum_discussions', ['id' => $post->discussion], '*', MUST_EXIST);
+        hsuforum_sync_local_mentions($forum, $discussionrecord, $post, $context, $cm);
     }
 
     return $post->discussion;
@@ -4632,6 +4643,8 @@ function hsuforum_delete_post($post, $children, $course, $cm, $forum, $skipcompl
     require_once($CFG->libdir.'/completionlib.php');
 
     $context = context_module::instance($cm->id);
+    $postauthorid = (int)$post->userid;
+    $postid = (int)$post->id;
 
     if ($children !== 'ignore' && ($childposts = $DB->get_records('hsuforum_posts', array('parent'=>$post->id)))) {
        if ($children) {
@@ -4659,6 +4672,8 @@ function hsuforum_delete_post($post, $children, $course, $cm, $forum, $skipcompl
     $fs->delete_area_files($context->id, 'mod_hsuforum', 'post', $post->id);
 
     if ($DB->delete_records("hsuforum_posts", array("id" => $post->id))) {
+
+        hsuforum_revoke_local_mentions($postid, $context, (int)$course->id, $postauthorid);
 
         hsuforum_delete_read_records_for_post($post->id);
 
@@ -4696,6 +4711,130 @@ function hsuforum_delete_post($post, $children, $course, $cm, $forum, $skipcompl
         return true;
     }
     return false;
+}
+
+/**
+ * Check whether local_mention callback is available.
+ *
+ * @return bool
+ */
+function hsuforum_local_mention_available() {
+    return component_callback_exists('local_mention', 'content_saved') !== false;
+}
+
+/**
+ * Initialise local_mention autocomplete for hsuforum editors.
+ *
+ * @param moodle_page $page
+ * @param context_module $context
+ * @param int $courseid
+ * @return void
+ */
+function hsuforum_init_local_mention($page, context_module $context, int $courseid): void {
+    if (!hsuforum_local_mention_available()) {
+        return;
+    }
+
+    $page->requires->js_call_amd('local_mention/mention_autocomplete', 'init', [[
+        'selector' => 'textarea[name="message[text]"], textarea[name="message"], #id_message, .editor_atto_content[contenteditable="true"], .hsuforum-textarea[contenteditable="true"]',
+        'contextid' => (int)$context->id,
+        'courseid' => $courseid,
+    ]]);
+}
+
+/**
+ * Build allowed mention recipients for a hsuforum post.
+ *
+ * @param stdClass $forum
+ * @param stdClass $discussion
+ * @param stdClass $post
+ * @param context_module $context
+ * @param cm_info|stdClass $cm
+ * @return int[]
+ */
+function hsuforum_get_local_mention_allowed_userids($forum, $discussion, $post, context_module $context, $cm): array {
+    global $DB;
+
+    if (!empty($post->privatereply)) {
+        $allowed = [(int)$post->userid, (int)$post->privatereply];
+        return array_values(array_unique(array_filter($allowed)));
+    }
+
+    $enrolledusers = get_enrolled_users($context, '', 0, 'u.id');
+    $allowed = [];
+
+    foreach ($enrolledusers as $user) {
+        if (hsuforum_user_can_see_post($forum, $discussion, $post, $user, $cm)) {
+            $allowed[(int)$user->id] = (int)$user->id;
+        }
+    }
+
+    if ($DB->record_exists('user', ['id' => $post->userid])) {
+        $allowed[(int)$post->userid] = (int)$post->userid;
+    }
+
+    return array_values($allowed);
+}
+
+/**
+ * Sync a hsuforum post into local_mention.
+ *
+ * @param stdClass $forum
+ * @param stdClass $discussion
+ * @param stdClass $post
+ * @param context_module $context
+ * @param cm_info|stdClass $cm
+ * @return void
+ */
+function hsuforum_sync_local_mentions($forum, $discussion, $post, context_module $context, $cm): void {
+    if (!hsuforum_local_mention_available()) {
+        return;
+    }
+
+    $url = new \moodle_url('/mod/hsuforum/discuss.php', ['d' => $discussion->id], 'p' . $post->id);
+    $payload = [
+        'component' => 'mod_hsuforum',
+        'itemtype' => 'post',
+        'itemid' => (int)$post->id,
+        'contextid' => (int)$context->id,
+        'courseid' => (int)$forum->course,
+        'authorid' => (int)$post->userid,
+        'content' => (string)$post->message,
+        'format' => isset($post->messageformat) ? (int)$post->messageformat : FORMAT_HTML,
+        'subject' => (string)$post->subject,
+        'url' => $url->out(false),
+        'alloweduserids' => hsuforum_get_local_mention_allowed_userids($forum, $discussion, $post, $context, $cm),
+    ];
+
+    component_callback('local_mention', 'content_saved', [$payload], []);
+}
+
+/**
+ * Revoke all mentions for a deleted hsuforum post.
+ *
+ * @param int $postid
+ * @param context_module $context
+ * @param int $courseid
+ * @param int $authorid
+ * @return void
+ */
+function hsuforum_revoke_local_mentions(int $postid, context_module $context, int $courseid, int $authorid): void {
+    if (!hsuforum_local_mention_available()) {
+        return;
+    }
+
+    $payload = [
+        'component' => 'mod_hsuforum',
+        'itemtype' => 'post',
+        'itemid' => $postid,
+        'contextid' => (int)$context->id,
+        'courseid' => $courseid,
+        'authorid' => $authorid,
+        'content' => '[deleted]',
+        'alloweduserids' => [],
+    ];
+
+    component_callback('local_mention', 'content_saved', [$payload], []);
 }
 
 /**

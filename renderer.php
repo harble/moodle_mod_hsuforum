@@ -172,6 +172,7 @@ class mod_hsuforum_renderer extends \core\output\plugin_renderer_base {
         }
 
         $PAGE->requires->js_init_call('M.mod_hsuforum.init', null, false, $this->get_js_module());
+        hsuforum_init_local_mention($PAGE, $context, (int)$course->id);
         $output .= $this->svg_sprite();
         $this->view($course, $cm, $forum, $context);
 

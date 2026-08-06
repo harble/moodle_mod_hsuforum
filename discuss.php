@@ -221,6 +221,7 @@
 
     $renderer = $PAGE->get_renderer('mod_hsuforum');
     $PAGE->requires->js_init_call('M.mod_hsuforum.init', null, false, $renderer->get_js_module());
+    hsuforum_init_local_mention($PAGE, $modcontext, (int)$course->id);
 
     $PAGE->set_title("$course->shortname: $discussion->name");
     $PAGE->set_heading($course->fullname);

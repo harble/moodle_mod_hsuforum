@@ -4739,6 +4739,8 @@ function hsuforum_init_local_mention($page, context_module $context, int $course
         'selector' => 'textarea[name="message[text]"], textarea[name="message"], #id_message, .editor_atto_content[contenteditable="true"], .hsuforum-textarea[contenteditable="true"]',
         'contextid' => (int)$context->id,
         'courseid' => $courseid,
+        'searchallusers' => true,
+        'debug' => true,
     ]]);
 }
 
@@ -4803,6 +4805,7 @@ function hsuforum_sync_local_mentions($forum, $discussion, $post, context_module
         'format' => isset($post->messageformat) ? (int)$post->messageformat : FORMAT_HTML,
         'subject' => (string)$post->subject,
         'url' => $url->out(false),
+        'searchallusers' => true,
         'alloweduserids' => hsuforum_get_local_mention_allowed_userids($forum, $discussion, $post, $context, $cm),
     ];
 

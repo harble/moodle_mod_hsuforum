@@ -315,9 +315,12 @@
 }
 #page-mod-hsuforum-discuss .hsuforum-thread-author {
     width: 12%;
+    min-width: 80px;
 }
 #page-mod-hsuforum-discuss .hsuforum-thread-header {
     width: 88%;
+    height: 60px;
+    margin-bottom: 18px;
 }
 
 #page-mod-hsuforum-discuss article.hsuforum-thread > header {
@@ -417,6 +420,7 @@
     -webkit-transition: opacity .3s;
     transition: opacity .3s;
     opacity: 0.85;
+    margin-top: 5px;
 }
 .hsuforum-post-target:target .hsuforum-post-title,
 .hsuforum-post:hover .hsuforum-post-title {
@@ -838,12 +842,18 @@ FUN WITH FORMS
     .hsuforum-thread-meta,
     .hsuforum-thread-replies-meta,
     .hsuforum-thread-figure,
-    .hsuform-post-date,
     .hsuforum-postflagging {
         clear: both;
         display: block;
         width: 100%;
         float: none;
+    }
+
+    .hsuforum-thread-meta {
+        position: relative;
+        top: -148px;
+        right: -50px;
+        text-align: right;
     }
 
     .hsuforum-post-figure {
@@ -858,8 +868,14 @@ FUN WITH FORMS
         max-width: 50px;
     }
 
-    .hsuform-post-date,
+    .hsuform-post-date {
+        position: absolute;
+        right: 2px;
+    }
+
     .hsuforum-postflagging {
+        float: right;
+        width: 80px;
         text-align: right;
     }
 

@@ -138,6 +138,16 @@ class mod_hsuforum_mod_form extends moodleform_mod {
         }
         $mform->setDefault('forcesubscribe', $defaultforumsubscription);
 
+        $notificationoptions = hsuforum_get_notificationmode_options();
+        $mform->addElement('select', 'notificationmode', get_string('notificationmode', 'hsuforum'), $notificationoptions);
+        $mform->addHelpButton('notificationmode', 'notificationmode', 'hsuforum');
+        if (isset($CFG->hsuforum_notificationmode)) {
+            $defaultnotificationmode = $CFG->hsuforum_notificationmode;
+        } else {
+            $defaultnotificationmode = HSUFORUM_NOTIFICATION_PARENTAUTHOR;
+        }
+        $mform->setDefault('notificationmode', $defaultnotificationmode);
+
         if ($CFG->enablerssfeeds && isset($config->enablerssfeeds) && $config->enablerssfeeds) {
 //-------------------------------------------------------------------------------
             $mform->addElement('header', 'rssheader', get_string('rss'));

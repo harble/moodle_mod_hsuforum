@@ -145,6 +145,7 @@ class mod_hsuforum_external extends external_api {
                     'maxbytes' => new external_value(PARAM_INT, 'Maximum attachment size'),
                     'maxattachments' => new external_value(PARAM_INT, 'Maximum number of attachments'),
                     'forcesubscribe' => new external_value(PARAM_INT, 'Force users to subscribe'),
+                    'notificationmode' => new external_value(PARAM_INT, 'Reply notification mode'),
                     'trackingtype' => new external_value(PARAM_INT, 'Tracking type'),
                     'rsstype' => new external_value(PARAM_INT, 'RSS feed for this activity'),
                     'rssarticles' => new external_value(PARAM_INT, 'Number of RSS recent articles'),

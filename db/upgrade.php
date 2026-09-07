@@ -477,6 +477,17 @@ function xmldb_hsuforum_upgrade($oldversion) {
         upgrade_mod_savepoint(true, 2026052100, 'hsuforum');
     }
 
+    if ($oldversion < 2026090700) {
+        $table = new xmldb_table('hsuforum');
+        $field = new xmldb_field('notificationmode', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '1', 'forcesubscribe');
+
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        upgrade_mod_savepoint(true, 2026090700, 'hsuforum');
+    }
+
     return true;
 }
 

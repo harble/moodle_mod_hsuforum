@@ -41,6 +41,9 @@ define('HSUFORUM_FORCESUBSCRIBE', 1);
 define('HSUFORUM_INITIALSUBSCRIBE', 2);
 define('HSUFORUM_DISALLOWSUBSCRIBE',3);
 
+define('HSUFORUM_NOTIFICATION_DISCUSSION', 0);
+define('HSUFORUM_NOTIFICATION_PARENTAUTHOR', 1);
+
 /**
  * HSUFORUM_TRACKING_OFF - Tracking is not available for this forum.
  */
@@ -545,7 +548,8 @@ function hsuforum_cron() {
                 }
             }
 
-            if (!empty($post->parent) && empty($post->privatereply)) {
+            if (hsuforum_get_notificationmode($forums[$forumid]) == HSUFORUM_NOTIFICATION_PARENTAUTHOR
+                    && !empty($post->parent) && empty($post->privatereply)) {
                 $parentauthorid = hsuforum_get_parent_post_authorid($post);
                 if (!empty($parentauthorid) && !isset($users[$parentauthorid])) {
                     $parentauthor = new stdClass();
@@ -1111,7 +1115,8 @@ function hsuforum_cron() {
                             continue;
                         }
 
-                        if (!empty($post->parent) && empty($post->privatereply)) {
+                        if (hsuforum_get_notificationmode($forum) == HSUFORUM_NOTIFICATION_PARENTAUTHOR
+                                && !empty($post->parent) && empty($post->privatereply)) {
                             $replyparentauthorid = hsuforum_get_parent_post_authorid($post);
                             if (!empty($replyparentauthorid) && (int)$userto->id !== (int)$replyparentauthorid) {
                                 continue;
@@ -2027,6 +2032,26 @@ function hsuforum_get_parent_post_authorid($post): int {
     }
 
     return $parentauthors[$post->parent];
+}
+
+/**
+ * Determine the notification mode for a forum.
+ *
+ * @param stdClass|int $forum Forum object or forum id.
+ * @return int
+ */
+function hsuforum_get_notificationmode($forum): int {
+    global $DB;
+
+    if (is_numeric($forum)) {
+        $forum = $DB->get_record('hsuforum', array('id' => (int)$forum), 'id, notificationmode', IGNORE_MISSING);
+    }
+
+    if (!empty($forum) && property_exists($forum, 'notificationmode')) {
+        return (int)$forum->notificationmode;
+    }
+
+    return HSUFORUM_NOTIFICATION_PARENTAUTHOR;
 }
 
 /**
@@ -7003,6 +7028,19 @@ function hsuforum_discussion_update_last_post($discussionid) {
  */
 function hsuforum_get_view_actions() {
     return array('view discussion', 'search', 'forum', 'forums', 'subscribers', 'view forum');
+}
+
+/**
+ * List the options for forum notification modes.
+ * This is used by the settings page and by the mod_form page.
+ *
+ * @return array
+ */
+function hsuforum_get_notificationmode_options() {
+    $options = array();
+    $options[HSUFORUM_NOTIFICATION_DISCUSSION] = get_string('notificationdiscussion', 'hsuforum');
+    $options[HSUFORUM_NOTIFICATION_PARENTAUTHOR] = get_string('notificationparentauthor', 'hsuforum');
+    return $options;
 }
 
 /**

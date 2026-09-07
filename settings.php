@@ -75,6 +75,11 @@ if ($ADMIN->fulltree) {
     $settings->add(new admin_setting_configselect('hsuforum_subscription', get_string('subscriptionmode', 'hsuforum'),
         get_string('configsubscriptiontype', 'hsuforum'), HSUFORUM_CHOOSESUBSCRIBE, $options));
 
+    // Default notification mode setting.
+    $notificationoptions = hsuforum_get_notificationmode_options();
+    $settings->add(new admin_setting_configselect('hsuforum_notificationmode', get_string('notificationmode', 'hsuforum'),
+        get_string('confignotificationmode', 'hsuforum'), HSUFORUM_NOTIFICATION_PARENTAUTHOR, $notificationoptions));
+
     // Default number of days that a post is considered old
     $settings->add(new admin_setting_configtext('hsuforum/oldpostdays', get_string('oldpostdays', 'hsuforum'),
                        get_string('configoldpostdays', 'hsuforum'), 14, PARAM_INT));

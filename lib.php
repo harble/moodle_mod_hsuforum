@@ -545,6 +545,15 @@ function hsuforum_cron() {
                 }
             }
 
+            if (!empty($post->parent) && empty($post->privatereply)) {
+                $parentauthorid = hsuforum_get_parent_post_authorid($post);
+                if (!empty($parentauthorid) && !isset($users[$parentauthorid])) {
+                    $parentauthor = new stdClass();
+                    $parentauthor->id = $parentauthorid;
+                    $users[$parentauthorid] = $parentauthor;
+                }
+            }
+
             $modcontext = context_module::instance($coursemodules[$forumid]->id);
 
             // Save the Inbound Message datakey here to reduce DB queries later.
@@ -629,14 +638,25 @@ function hsuforum_cron() {
                 $forum      = $forums[$discussion->forum];
                 $course     = $courses[$forum->course];
                 $cm         =& $coursemodules[$forum->id];
+                $replyparentauthorid = 0;
+
+                if (!empty($post->parent) && empty($post->privatereply)) {
+                    $replyparentauthorid = hsuforum_get_parent_post_authorid($post);
+                }
 
                 // Do some checks  to see if we can bail out now.
 
-                // Only active enrolled users are in the list of subscribers.
-                // This does not necessarily mean that the user is subscribed to the forum or to the discussion though.
-                if (!isset($subscribedusers[$forum->id][$userto->id])) {
-                    if (!isset($discussionsubscribers[$post->discussion][$userto->id])) {
-                        continue; // user does not subscribe to this forum
+                if (!empty($replyparentauthorid)) {
+                    if ((int)$userto->id !== (int)$replyparentauthorid || (int)$userto->id === (int)$post->userid) {
+                        continue;
+                    }
+                } else {
+                    // Only active enrolled users are in the list of subscribers.
+                    // This does not necessarily mean that the user is subscribed to the forum or to the discussion though.
+                    if (!isset($subscribedusers[$forum->id][$userto->id])) {
+                        if (!isset($discussionsubscribers[$post->discussion][$userto->id])) {
+                            continue; // user does not subscribe to this forum
+                        }
                     }
                 }
 
@@ -1089,6 +1109,16 @@ function hsuforum_cron() {
                         } else {
                             mtrace('Could not find user '.$post->userid);
                             continue;
+                        }
+
+                        if (!empty($post->parent) && empty($post->privatereply)) {
+                            $replyparentauthorid = hsuforum_get_parent_post_authorid($post);
+                            if (!empty($replyparentauthorid) && (int)$userto->id !== (int)$replyparentauthorid) {
+                                continue;
+                            }
+                            if (!empty($replyparentauthorid) && (int)$userto->id === (int)$post->userid) {
+                                continue;
+                            }
                         }
 
                         // Avoid sending confidentiary data to unsuspecting eyes.
@@ -1967,6 +1997,36 @@ function hsuforum_get_post_full($postid) {
                                   LEFT JOIN {user} u ON p.userid = u.id
                                   LEFT JOIN {hsuforum_read} r ON r.postid = p.id AND r.userid = u.id
                             WHERE p.id = ?", array($postid));
+}
+
+/**
+ * Get the userid of a post's direct parent author.
+ *
+ * @param stdClass|int $post Post object or post id.
+ * @return int
+ */
+function hsuforum_get_parent_post_authorid($post): int {
+    global $DB;
+
+    static $parentauthors = array();
+
+    if (is_numeric($post)) {
+        $post = $DB->get_record('hsuforum_posts', array('id' => (int)$post), 'id, parent, userid', IGNORE_MISSING);
+        if (empty($post)) {
+            return 0;
+        }
+    }
+
+    if (empty($post->parent)) {
+        return 0;
+    }
+
+    if (!array_key_exists($post->parent, $parentauthors)) {
+        $parent = $DB->get_record('hsuforum_posts', array('id' => $post->parent), 'id, userid', IGNORE_MISSING);
+        $parentauthors[$post->parent] = !empty($parent->userid) ? (int)$parent->userid : 0;
+    }
+
+    return $parentauthors[$post->parent];
 }
 
 /**

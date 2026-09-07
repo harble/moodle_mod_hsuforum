@@ -201,9 +201,10 @@ function mod_hsuforum_discuss_embed_prepare_iid_seed(int $iid, stdClass $forum):
  *
  * @param stdClass $forum Target forum record.
  * @param array $seed Prepared seed data from mode-specific builder.
+ * @param bool $iscidmode True when called from cid mapping mode.
  * @return int
  */
-function mod_hsuforum_discuss_embed_resolve_discussionid(stdClass $forum, array $seed): int {
+function mod_hsuforum_discuss_embed_resolve_discussionid(stdClass $forum, array $seed, bool $iscidmode = false): int {
     global $DB, $USER;
 
     $mappingtable = $seed['mappingtable'];
@@ -274,6 +275,13 @@ function mod_hsuforum_discuss_embed_resolve_discussionid(stdClass $forum, array 
         $discussion->pinned = 0;
 
         $discussionid = (int)hsuforum_add_discussion($discussion, null, null, $creatorid);
+
+        $skipdiscussionsubscribe = $iscidmode && is_siteadmin($creatorid);
+        if (!$skipdiscussionsubscribe) {
+            require_once(__DIR__ . '/repository/discussion.php');
+            $discussionrepo = new hsuforum_repository_discussion();
+            $discussionrepo->subscribe($discussionid, $creatorid);
+        }
 
         if (empty($map)) {
             $map = new stdClass();
@@ -369,7 +377,7 @@ $seed = $usecidmode
     ? mod_hsuforum_discuss_embed_prepare_cid_seed($cid, $forum)
     : mod_hsuforum_discuss_embed_prepare_iid_seed($iid, $forum);
 
-$discussionid = mod_hsuforum_discuss_embed_resolve_discussionid($forum, $seed);
+$discussionid = mod_hsuforum_discuss_embed_resolve_discussionid($forum, $seed, $usecidmode);
 
 // Hand off final rendering to discuss.php in embed mode.
 $targeturl = new \core\url('/mod/hsuforum/discuss.php', ['d' => $discussionid, 'embed' => 1]);

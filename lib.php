@@ -4418,6 +4418,7 @@ function hsuforum_add_discussion($discussion, $mform=null, $unused=null, $userid
     $post->attachments   = isset($discussion->attachments) ? $discussion->attachments : null;
     $post->forum         = $forum->id;     // speedup
     $post->course        = $forum->course; // speedup
+    $post->privatereply  = 0;
     $post->mailnow       = $discussion->mailnow;
     $post->reveal        = $discussion->reveal;
 

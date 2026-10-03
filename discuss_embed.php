@@ -369,6 +369,56 @@ $course = $DB->get_record('course', ['id' => $forum->course], '*', MUST_EXIST);
 $cm = get_coursemodule_from_instance('hsuforum', $forum->id, $course->id, false, MUST_EXIST);
 $forumcontext = context_module::instance($cm->id);
 
+// Auto-enrol the current logged-in, non-guest user into the forum's course when
+// they are not yet enrolled (e.g. an external integration that opens this page
+// before the user completes the enrolment flow). This gives them the student
+// role, without which they would not be allowed to post in the forum.
+// Guests and anonymous visitors are left for require_course_login() to handle.
+$coursecontext = \context_course::instance($course->id);
+if (isloggedin() && !isguestuser()
+        && !is_enrolled($coursecontext)
+        && !has_capability('moodle/course:view', $coursecontext)) {
+
+    // Prefer a password-less self enrolment instance, as vitrina does.
+    $selfinstance = $DB->get_record('enrol', [
+        'courseid' => $course->id,
+        'enrol' => 'self',
+        'status' => ENROL_INSTANCE_ENABLED,
+    ], '*', IGNORE_MULTIPLE);
+
+    if ($selfinstance && empty($selfinstance->password)) {
+        $selfplugin = enrol_get_plugin('self');
+        if ($selfplugin) {
+            $selfplugin->enrol_self($selfinstance);
+        }
+    }
+
+    // Fall back to a manual enrolment instance when no self enrolment applies.
+    if (!is_enrolled($coursecontext)) {
+        $manualinstance = $DB->get_record('enrol', [
+            'courseid' => $course->id,
+            'enrol' => 'manual',
+            'status' => ENROL_INSTANCE_ENABLED,
+        ], '*', IGNORE_MULTIPLE);
+
+        if ($manualinstance && !empty($manualinstance->roleid)) {
+            $manualplugin = enrol_get_plugin('manual');
+            if ($manualplugin) {
+                $manualplugin->enrol_user($manualinstance, $USER->id, (int)$manualinstance->roleid);
+            }
+        }
+    }
+
+    // The enrolment flow triggers notifications/events that initialise the page
+    // output and lock the theme for the current request. Continuing here would
+    // make require_course_login() call $PAGE->set_course() after the theme was
+    // already set up, which throws a coding_exception. Instead, redirect back to
+    // the same page so the now-enrolled user loads it fresh in the next request.
+    if (is_enrolled($coursecontext)) {
+        redirect($url);
+    }
+}
+
 require_course_login($course, true, $cm);
 require_capability('mod/hsuforum:viewdiscussion', $forumcontext);
 

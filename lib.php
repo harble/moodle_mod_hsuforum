@@ -476,7 +476,11 @@ function hsuforum_cron() {
     // cron has not been running for a long time, and then suddenly people are flooded
     // with mail from the past few weeks or months
     $timenow   = time();
-    $endtime   = $timenow - $CFG->maxeditingtime;
+    $maildelay = get_config('hsuforum', 'maildelay');
+    if ($maildelay === false) {
+        $maildelay = $CFG->maxeditingtime;
+    }
+    $endtime   = $timenow - $maildelay;
     $starttime = $endtime - 48 * 3600;   // Two days earlier
 
     // Get the list of forum subscriptions for per-user per-forum maildigest settings.

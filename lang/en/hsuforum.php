@@ -96,6 +96,7 @@ $string['completionreplieshelp'] = 'requiring replies to complete';
 $string['confignotificationmode'] = 'Default setting for reply notifications.';
 $string['configcleanreadtime'] = 'The hour of the day to clean old posts from the \'read\' table.';
 $string['configdigestmailtime'] = 'People who choose to have emails sent to them in digest form will be emailed the digest daily. This setting controls which time of day the daily mail will be sent (the next cron that runs after this hour will send it).';
+$string['configmaildelay'] = 'Number of seconds to wait after a post is created before it is picked up by the cron task and sent out. Set to 0 for the next cron run (recommended for near-immediate notifications). This only affects the sending delay and does not change the post editing window.';
 $string['configenablerssfeeds'] = 'This switch will enable the possibility of RSS feeds for all forums.  You will still need to turn feeds on manually in the settings for each forum.';
 $string['configenabletimedposts'] = 'Set to \'yes\' if you want to allow setting of display periods when posting a new forum discussion.';
 $string['configlongpost'] = 'Any post over this length (in characters not including HTML) is considered long. Posts displayed on the site front page, social format course pages, or user profiles are shortened to a natural break somewhere between the hsuforum_shortpost and hsuforum_longpost values.';
@@ -294,6 +295,7 @@ $string['lockdiscussionafter_help'] = 'Discussions may be automatically locked a
 
 Users with the capability to reply to locked discussions can unlock a discussion by replying to it.';
 $string['longpost'] = 'Long post';
+$string['maildelay'] = 'Notification sending delay';
 $string['mailnow'] = 'Email notifications without editing time delay';
 $string['manydiscussions'] = 'Discussions per page';
 $string['managesubscriptionsoff'] = 'Finish managing subscriptions';

@@ -80,6 +80,10 @@ if ($ADMIN->fulltree) {
     $settings->add(new admin_setting_configselect('hsuforum_notificationmode', get_string('notificationmode', 'hsuforum'),
         get_string('confignotificationmode', 'hsuforum'), HSUFORUM_NOTIFICATION_PARENTAUTHOR, $notificationoptions));
 
+    // Delay (in seconds) before a newly created post is picked up by cron for sending.
+    $settings->add(new admin_setting_configtext('hsuforum/maildelay', get_string('maildelay', 'hsuforum'),
+        get_string('configmaildelay', 'hsuforum'), isset($CFG->maxeditingtime) ? $CFG->maxeditingtime : 1800, PARAM_INT));
+
     // Default number of days that a post is considered old
     $settings->add(new admin_setting_configtext('hsuforum/oldpostdays', get_string('oldpostdays', 'hsuforum'),
                        get_string('configoldpostdays', 'hsuforum'), 14, PARAM_INT));
@@ -141,4 +145,3 @@ if ($ADMIN->fulltree) {
     $settings->add(new admin_setting_configcheckbox('hsuforum/hiderecentposts', get_string('hiderecentposts', 'hsuforum'),
                        get_string('confighiderecentposts', 'hsuforum'), 0));
 }
-

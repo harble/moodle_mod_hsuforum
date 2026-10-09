@@ -96,6 +96,7 @@ $string['completionreplieshelp'] = '需要回复才能完成';
 $string['confignotificationmode'] = '回复通知的默认设置。';
 $string['configcleanreadtime'] = '每天清理"已读"表中旧帖子的时间（小时）。';
 $string['configdigestmailtime'] = '选择以摘要形式接收邮件的用户将每天收到摘要邮件。此设置控制每天发送摘要邮件的时间（该时间之后运行的下一个定时任务将发送邮件）。';
+$string['configmaildelay'] = '帖子创建后，经过多少秒才会被定时任务拾取并发送。设为 0 则在下一个定时任务运行时立即发送（推荐用于接近实时的通知）。此设置仅影响发送延迟，不会改变帖子的编辑窗口。';
 $string['configenablerssfeeds'] = '此开关将启用所有论坛的 RSS 订阅功能。您仍需在每个论坛的设置中手动开启订阅。';
 $string['configenabletimedposts'] = '设置为"是"以允许在发布新论坛讨论时设置展示时间段。';
 $string['configlongpost'] = '超过此长度（不含 HTML 的字符数）的帖子视为长帖。显示在网站首页、社交格式课程页面或用户个人资料的帖子将在 hsuforum_shortpost 和 hsuforum_longpost 值之间的自然断点处缩短。';
@@ -294,6 +295,7 @@ $string['lockdiscussionafter_help'] = 'Discussions may be automatically locked a
 
 Users with the capability to reply to locked discussions can unlock a discussion by replying to it.';
 $string['longpost'] = '长帖';
+$string['maildelay'] = '通知发送延迟';
 $string['mailnow'] = '立即发送邮件通知（不等待编辑时间）';
 $string['manydiscussions'] = '每页显示的讨论数';
 $string['managesubscriptionsoff'] = '完成订阅管理';
@@ -791,14 +793,3 @@ $string['completionview'] = '要求查看';
 $string['completionusegrade'] = '需要评分才能完成';
 $string['completionusegrade_desc'] = '获得成绩';
 $string['completionusegrade_help'] = '启用后，当学生获得成绩时活动即视为完成。如果设置了活动及格成绩，则活动完成报告中会显示及格/不及格图标。';
-
-
-
-
-
-
-
-
-
-
-

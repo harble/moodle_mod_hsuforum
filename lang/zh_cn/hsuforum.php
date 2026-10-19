@@ -756,6 +756,7 @@ $string['useadvancededitor'] = '使用高级编辑器及更多选项';
 $string['accessible'] = '无障碍访问';
 $string['addyourdiscussion'] = '添加你的讨论';
 $string['subjectplaceholder'] = '你的主题';
+$string['subjectplaceholderoptional'] = '你的主题(非必填)';
 $string['messageplaceholder'] = '输入你的帖子内容';
 $string['notuploadedfile'] = '文件上传出现问题，请重试';
 $string['trackingoptions'] = '躺读选项';

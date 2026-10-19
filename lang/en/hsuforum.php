@@ -756,6 +756,7 @@ $string['useadvancededitor'] = 'Use advanced editor and additional options';
 $string['accessible'] = 'Accessible';
 $string['addyourdiscussion'] = 'Add your discussion';
 $string['subjectplaceholder'] = 'Your subject';
+$string['subjectplaceholderoptional'] = 'Your subject (optional)';
 $string['messageplaceholder'] = 'Type your post';
 $string['notuploadedfile'] = 'There was a problem with uploading your file, please try again';
 $string['trackingoptions'] = 'Tracking options';

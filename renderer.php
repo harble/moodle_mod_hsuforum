@@ -1652,6 +1652,8 @@ HTML;
             'legend'          => $legend,
             'extrahtml'       => $extrahtml,
             'subjectrequired' => $isedit,
+            'subjectplaceholder' => $isedit ? get_string('subjectplaceholder', 'hsuforum')
+                                             : get_string('subjectplaceholderoptional', 'hsuforum'),
             'advancedurl'     => new \core\url('/mod/hsuforum/post.php', array($param => $postid)),
         );
         return $this->simple_edit_template($data);

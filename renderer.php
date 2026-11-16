@@ -362,6 +362,7 @@ class mod_hsuforum_renderer extends \core\output\plugin_renderer_base {
         $data->pinned   = $discussion->pinned;
         $data->replies  = $discussion->replies;
         $data->replyavatars = array();
+        $data->replyparts = 0;
         if ($data->replies > 0) {
             // Get actual replies
             $userfieldsapi = \core_user\fields::for_userpic();
@@ -384,6 +385,8 @@ class mod_hsuforum_renderer extends \core\output\plugin_renderer_base {
                     $replyuser->imagealt = fullname($replyuser);
                     $data->replyavatars[] = $this->output->user_picture($replyuser, array('link' => false, 'size' => 100));
                 }
+                $data->replyparts = count($data->replyavatars);
+                $data->replyavatars = array_slice($data->replyavatars, 0, 3);
             }
         }
         $data->group      = $group;
@@ -552,7 +555,15 @@ class mod_hsuforum_renderer extends \core\output\plugin_renderer_base {
         $replies = '';
         if(!empty($d->replies)) {
             $xreplies = hsuforum_xreplies($d->replies);
-            $replies = "<span class='hsuforum-replycount'>$xreplies</span>";
+            $repliestitle = '';
+            if (!empty($d->modified)) {
+                $repliestitle = get_string('lastposttimeago', 'hsuforum', strip_tags(hsuforum_relative_time($d->rawmodified)));
+            }
+            if (!empty($d->replyparts)) {
+                $parts = get_string('xparticipants', 'hsuforum', $d->replyparts);
+                $repliestitle = ($repliestitle !== '') ? $repliestitle . "\n" . $parts : $parts;
+            }
+            $replies = "<span class='hsuforum-replycount' title='".s($repliestitle)."'>$xreplies</span>";
         }
         $fullnametitle = s(strip_tags($d->fullname));
         if (!empty($d->userurl)) {
@@ -582,11 +593,6 @@ class mod_hsuforum_renderer extends \core\output\plugin_renderer_base {
             $group = '<br>'.$d->group;
         }
 
-        $latestpost = '';
-        if (!empty($d->modified) && !empty($d->replies)) {
-            $latestpost = '<small class="hsuforum-thread-replies-meta">'.get_string('lastposttimeago', 'hsuforum', hsuforum_relative_time($d->rawmodified)).'</small>';
-        }
-
         $participants = '<div class="hsuforum-thread-participants">'.implode(' ',$d->replyavatars).'</div>';
 
 
@@ -603,10 +609,9 @@ class mod_hsuforum_renderer extends \core\output\plugin_renderer_base {
         $options = get_string('options', 'hsuforum');
         $threadmeta  =
             '<div class="hsuforum-thread-meta">'
-                .$replies
                 .$unread
                 .$participants
-                .$latestpost
+                .$replies
                 .'<div class="hsuforum-thread-flags">'."{$d->subscribe} $d->postflags $d->timed</div>"
             .'</div>';
 
@@ -627,13 +632,19 @@ class mod_hsuforum_renderer extends \core\output\plugin_renderer_base {
         }
 
         $arialabeldiscussion = get_string('discussionforum', 'hsuforum', $d->subject);
+        $threadtitlefull = s(strip_tags($d->subject));
+        if (!$d->fullthread) {
+            $datecreated = '<a class="disable-router" href="' . $d->viewurl . '">' . $datecreated . '</a>';
+        }
+        $datecreated = $byuser . ' ' . $datecreated;
+        $byuser = '';
 
         $threadheader = <<<HTML
         <div class="hsuforum-thread-header">
             <div class="hsuforum-thread-title">
-                <h4 id='thread-title-{$d->id}' role="heading" aria-level="4">
+                <h5 id='thread-title-{$d->id}' role="heading" aria-level="5" title="$threadtitlefull">
                     $threadtitle
-                </h4>
+                </h5>
                 <small>$datecreated</small>
             </div>
             $threadmeta

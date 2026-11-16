@@ -1387,6 +1387,14 @@ body.embed-mode #region-main .hsuforum-replycount-link
 {
     font-size: 0.85rem !important; /* stylelint-disable-line declaration-no-important */
 }
+
+body.embed-mode #region-main h2,
+body.embed-mode #region-main .hsuforum-thread-content,
+body.embed-mode #region-main .discussioncontrols,
+body.embed-mode #region-main .hsuforum-use-advanced {
+    display: none;
+}
+
 #region-main .hsuforum-thread-replies h5 {
     display: none;
 }

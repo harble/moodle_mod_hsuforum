@@ -343,6 +343,388 @@ function mod_hsuforum_discuss_embed_resolve_course_creatorid(stdClass $course): 
     return (int)$USER->id;
 }
 
+/**
+ * Auto-enrol the current logged-in, non-guest user into a course when they
+ * are not yet enrolled (e.g. an external integration opens this page before
+ * the user completes the enrolment flow). Gives them the student role.
+ *
+ * Uses a password-less self enrolment instance when available, falling back
+ * to a manual enrolment instance. If enrolment succeeds the request is
+ * redirected so the page is re-loaded fresh in the next request (the enrolment
+ * flow locks the theme for the current request, which would otherwise clash
+ * with require_course_login()).
+ *
+ * @param int $courseid Course to ensure enrolment for.
+ * @return void
+ */
+function mod_hsuforum_discuss_embed_auto_enrol_course(int $courseid): void {
+    global $USER, $DB, $PAGE;
+
+    $coursecontext = \context_course::instance($courseid);
+
+    if (!isloggedin() || isguestuser()
+            || is_enrolled($coursecontext)
+            || has_capability('moodle/course:view', $coursecontext)) {
+        return;
+    }
+
+    // Prefer a password-less self enrolment instance, as vitrina does.
+    $selfinstance = $DB->get_record('enrol', [
+        'courseid' => $courseid,
+        'enrol' => 'self',
+        'status' => ENROL_INSTANCE_ENABLED,
+    ], '*', IGNORE_MULTIPLE);
+
+    if ($selfinstance && empty($selfinstance->password)) {
+        $selfplugin = enrol_get_plugin('self');
+        if ($selfplugin) {
+            $selfplugin->enrol_self($selfinstance);
+        }
+    }
+
+    // Fall back to a manual enrolment instance when no self enrolment applies.
+    if (!is_enrolled($coursecontext)) {
+        $manualinstance = $DB->get_record('enrol', [
+            'courseid' => $courseid,
+            'enrol' => 'manual',
+            'status' => ENROL_INSTANCE_ENABLED,
+        ], '*', IGNORE_MULTIPLE);
+
+        if ($manualinstance && !empty($manualinstance->roleid)) {
+            $manualplugin = enrol_get_plugin('manual');
+            if ($manualplugin) {
+                $manualplugin->enrol_user($manualinstance, $USER->id, (int)$manualinstance->roleid);
+            }
+        }
+    }
+
+    // The enrolment flow triggers notifications/events that initialise the page
+    // output and lock the theme for the current request. Continuing here would
+    // make require_course_login() call $PAGE->set_course() after the theme was
+    // already set up, which throws a coding_exception. Redirect back to the
+    // same page so the now-enrolled user loads it fresh in the next request.
+    if (is_enrolled($coursecontext)) {
+        redirect($PAGE->url);
+    }
+}
+
+/**
+ * Normalize a channel/path string: unify slashes and strip all whitespace.
+ *
+ * Mirrors the matching logic used by the local mention plugin's
+ * reviewer resolution.
+ *
+ * @param string $value Raw channel value.
+ * @return string
+ */
+function mod_hsuforum_discuss_embed_normalize_channel(string $value): string {
+    $value = str_replace(['\\', '／', '＼'], '/', $value);
+    return (string)preg_replace('/\s+/', '', $value);
+}
+
+/**
+ * Extract the list of channels set on a data record.
+ *
+ * Channels are stored in a data field whose description is literally
+ * "channels"; the field value is a "##"-separated list.
+ *
+ * @param stdClass $data mod_data activity record.
+ * @param stdClass $record data record.
+ * @return array List of original (trimmed) channel names.
+ */
+function mod_hsuforum_discuss_embed_get_record_channels(stdClass $data, stdClass $record): array {
+    global $DB;
+
+    if (empty($data->id) || empty($record->id)) {
+        return [];
+    }
+
+    // Prefer a field whose description is literally "channels"; fall back to a
+    // field literally named "channels" for setups that identify it by name.
+    $channelsfield = $DB->get_record_sql(
+        "SELECT id FROM {data_fields} WHERE dataid = :dataid AND " . $DB->sql_compare_text('description') . " = :channels",
+        ['dataid' => (int)$data->id, 'channels' => 'channels']
+    );
+    if (!$channelsfield) {
+        $channelsfield = $DB->get_record('data_fields', ['dataid' => (int)$data->id, 'name' => 'channels'], 'id', IGNORE_MISSING);
+    }
+    if (!$channelsfield) {
+        return [];
+    }
+
+    $value = $DB->get_field('data_content', 'content', [
+        'recordid' => (int)$record->id,
+        'fieldid' => (int)$channelsfield->id,
+    ]);
+    if (empty($value)) {
+        return [];
+    }
+
+    return array_values(array_filter(array_map('trim', preg_split('/##/', (string)$value))));
+}
+
+/**
+ * Resolve the first user configured to review a matching channel via the
+ * "<database name>审批" additional profile field (located in the "配置项"
+ * category). Mirrors the local mention plugin's matching logic.
+ *
+ * @param stdClass $data mod_data activity record (its name forms the field name).
+ * @param string $channel Normalized channel to match.
+ * @return int|null First matching user id, or null when none configured.
+ */
+function mod_hsuforum_discuss_embed_resolve_channel_reviewer(stdClass $data, string $channel): ?int {
+    global $DB;
+
+    if (empty($data->id) || empty($data->name)) {
+        return null;
+    }
+
+    $fieldname = $data->name . '审批';
+    $userfield = $DB->get_record_sql(
+        "SELECT id FROM {user_info_field} WHERE " . $DB->sql_compare_text('name', 255) . " = :name",
+        ['name' => $fieldname]
+    );
+    if (!$userfield) {
+        return null;
+    }
+
+    $userdatas = $DB->get_records('user_info_data', ['fieldid' => (int)$userfield->id]);
+    foreach ($userdatas as $userdata) {
+        $raw = (string)$userdata->data;
+        if ((int)$userdata->dataformat === 1) {
+            $raw = preg_replace('/<br\s*\/?>/i', "\n", $raw);
+            $raw = preg_replace('/<\/(p|div|li|h[1-6]|tr)>/i', "\n", $raw);
+            $raw = strip_tags($raw);
+        }
+        $lines = array_values(array_filter(array_map('trim', preg_split('/\r?\n/', $raw))));
+        foreach ($lines as $line) {
+            if (mod_hsuforum_discuss_embed_normalize_channel($line) === $channel) {
+                return (int)$userdata->userid;
+            }
+        }
+    }
+
+    return null;
+}
+
+/**
+ * Ensure a "咨询专家" discussion exists in the consultant forum for a
+ * channel, reusing the previously created one when available.
+ *
+ * Reuse key: (forum id, creator id, title). The reviewer matched for the
+ * channel is set as the discussion creator.
+ *
+ * @param int $forumid hsuforum instance id to create the discussion in.
+ * @param string $channel Original channel name used as discussion title.
+ * @param int $creatorid User set as discussion creator (matched reviewer).
+ * @return int Discussion id, or 0 when the forum is unavailable.
+ */
+function mod_hsuforum_discuss_embed_ensure_channel_discussion(int $forumid, string $channel, int $creatorid): int {
+    global $DB;
+
+    if ($forumid <= 0 || $channel === '' || $creatorid <= 0) {
+        return 0;
+    }
+
+    $existingid = $DB->get_field(
+        'hsuforum_discussions',
+        'id',
+        ['forum' => $forumid, 'userid' => $creatorid, 'name' => $channel],
+        IGNORE_MULTIPLE
+    );
+    if ($existingid) {
+        return (int)$existingid;
+    }
+
+    $forum = $DB->get_record('hsuforum', ['id' => $forumid], '*', IGNORE_MISSING);
+    if (!$forum) {
+        return 0;
+    }
+
+    $discussion = new stdClass();
+    $discussion->course = (int)$forum->course;
+    $discussion->forum = (int)$forum->id;
+    $discussion->name = $channel;
+    $discussion->message = get_string('tab_consultant_message', 'hsuforum', $channel);
+    $discussion->messageformat = FORMAT_HTML;
+    $discussion->messagetrust = 0;
+    $discussion->mailnow = 0;
+    $discussion->reveal = 1;
+    $discussion->groupid = -1;
+    $discussion->timestart = 0;
+    $discussion->timeend = 0;
+    $discussion->pinned = 0;
+
+    return (int)hsuforum_add_discussion($discussion, null, null, $creatorid);
+}
+
+/**
+ * Render a standalone, iframe-friendly multi-tab page (comment + consultant
+ * expert tabs). Used when type=1 with an iid mode data record.
+ *
+ * @param stdClass $forum Target forum of the comment mode (fid param).
+ * @param stdClass $data mod_data activity record.
+ * @param stdClass $record data record.
+ * @param int $commentdiscussionid Resolved comment-mode discussion id.
+ * @return void
+ */
+function mod_hsuforum_discuss_embed_render_tabs_page(stdClass $forum, stdClass $data, stdClass $record, int $commentdiscussionid): void {
+    global $DB;
+
+    // The consultant forum instance that hosts the "咨询专家" discussions.
+    // The value "138" is the course-module id of that forum (as seen in
+    // /mod/hsuforum/view.php?id=138). Hard-coded for now; intended to become
+    // configurable later.
+    $consultforumcmid = 138;
+
+    // Resolve the course-module id to its hsuforum instance.
+    $consultforum = null;
+    $consultforumcm = get_coursemodule_from_id('hsuforum', $consultforumcmid, 0, false, MUST_EXIST);
+    if ($consultforumcm && !empty($consultforumcm->instance)) {
+        $consultforum = $DB->get_record('hsuforum', ['id' => (int)$consultforumcm->instance], '*', IGNORE_MISSING);
+    }
+
+    // Ensure the current user is enrolled in the consultant forum's course too,
+    // otherwise they could not view the embedded consultant discussions.
+    if ($consultforum) {
+        mod_hsuforum_discuss_embed_auto_enrol_course((int)$consultforum->course);
+    }
+
+    header('Content-Type: text/html; charset=utf-8');
+
+    // Comment tab re-uses the original iid-mode result.
+    $tabs = [];
+    $commenturl = new \core\url('/mod/hsuforum/discuss.php', ['d' => $commentdiscussionid, 'embed' => 1]);
+    $tabs[] = [
+        'key' => 'comment',
+        'main' => get_string('tab_comment', 'hsuforum'),
+        'sub' => get_string('tab_comment_sub', 'hsuforum'),
+        'url' => $commenturl->out(false),
+        'icon' => 'comment',
+    ];
+
+    // TEMP DEBUG: collect reasons so they are visible directly in the page.
+    $debugmsgs = [];
+
+    // Consultant expert tabs: one per channel with a matched reviewer.
+    if ($consultforum) {
+        $channels = mod_hsuforum_discuss_embed_get_record_channels($data, $record);
+        if (empty($channels)) {
+            $debugmsgs[] = 'no channels field/value found (dataid=' . $data->id . ', recordid=' . $record->id . ')';
+        }
+        $n = 0;
+        foreach ($channels as $channel) {
+            $reviewerid = mod_hsuforum_discuss_embed_resolve_channel_reviewer(
+                $data,
+                mod_hsuforum_discuss_embed_normalize_channel($channel)
+            );
+            if (!$reviewerid) {
+                $debugmsgs[] = 'no reviewer matched channel [' . $channel . '] (dataname=' . $data->name . ')';
+                continue;
+            }
+            $discussionid = mod_hsuforum_discuss_embed_ensure_channel_discussion($consultforum->id, $channel, $reviewerid);
+            if (!$discussionid) {
+                $debugmsgs[] = 'create/reuse discussion failed channel [' . $channel . '] forum=' . $consultforum->id;
+                continue;
+            }
+            $n++;
+            $tabs[] = [
+                'key' => 'consult-' . $n,
+                'main' => get_string('tab_consultant', 'hsuforum'),
+                'sub' => get_string('tab_consultant_channel', 'hsuforum', $channel),
+                'url' => (new \core\url('/mod/hsuforum/discuss.php', ['d' => $discussionid, 'embed' => 1]))->out(false),
+                'icon' => 'consult',
+            ];
+        }
+    } else {
+        $debugmsgs[] = 'consultant forum (cmid=' . $consultforumcmid . ') not found';
+    }
+
+    $iconcomment = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
+        . 'stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
+    $iconconsult = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
+        . 'stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/>'
+        . '<path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>';
+
+    $tabhtml = '';
+    $panelhtml = '';
+    foreach ($tabs as $tab) {
+        $icon = $tab['icon'] === 'consult' ? $iconconsult : $iconcomment;
+        $tabhtml .= '<button type="button" class="dc-tab" data-panel="' . s($tab['key']) . '">'
+            . '<span class="dc-tab-text">'
+            . '<span class="dc-tab-main">' . s($tab['main']) . '</span>'
+            . '<span class="dc-tab-sub">' . s($tab['sub']) . '</span>'
+            . '</span>'
+            . '<span class="dc-tab-icon">' . $icon . '</span>'
+            . '</button>';
+        $panelhtml .= '<div class="dc-panel" id="' . s($tab['key']) . '">'
+            . '<iframe data-src="' . s($tab['url']) . '" title="' . s($tab['main']) . '"></iframe>'
+            . '</div>';
+    }
+
+    $first = $tabs[0]['key'] ?? '';
+    echo '<!DOCTYPE html><html lang="zh-cn"><head><meta charset="utf-8">';
+    echo '<meta name="viewport" content="width=device-width, initial-scale=1">';
+    echo '<title>' . s(get_string('discussion', 'hsuforum')) . '</title>';
+    echo '<style>
+        html, body { margin: 0; padding: 0; background: #f6f7f9; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+        .dc-debug { background: #fff8e6; border-bottom: 1px solid #f0dfae; color: #7a5c00; padding: 8px 12px; font: 12px/1.5 Consolas, monospace; white-space: pre-wrap; word-break: break-all; }
+        .dc-tabs-scroll { overflow-x: auto; overflow-y: hidden; background: #fff; border-bottom: 1px solid #e5e7eb; scrollbar-width: thin; }
+        .dc-tabs { display: flex; gap: 8px; padding: 10px 12px; min-width: max-content; }
+        .dc-tab { display: flex; align-items: center; justify-content: space-between; column-gap: 16px;
+            border: 1px solid #e5e7eb; background: #f9fafb; color: #374151; border-radius: 8px;
+            padding: 8px 12px; cursor: pointer; text-align: left; transition: all .15s ease; }
+        .dc-tab:hover { border-color: #c7d2fe; }
+        .dc-tab.active { border-color: #4f46e5; background: #eef2ff; box-shadow: 0 1px 2px rgba(79,70,229,.15); }
+        .dc-tab-text { display: flex; flex-direction: column; align-items: flex-start; }
+        .dc-tab-main { font-size: 15px; font-weight: 600; line-height: 1.2; color: #111827; }
+        .dc-tab.active .dc-tab-main { color: #4338ca; }
+        .dc-tab-sub { font-size: 13px; line-height: 1.3; color: #6b7280; margin-top: 3px; }
+        .dc-tab-icon { color: #9ca3af; flex-shrink: 0; }
+        .dc-tab.active .dc-tab-icon { color: #4f46e5; }
+        .dc-panel { display: none; }
+        .dc-panel.active { display: block; }
+        .dc-panel iframe { display: block; width: 100%; border: 0; min-height: 75vh; height: calc(100vh - 60px); }
+    </style>';
+    echo '</head><body>';
+    if (!empty($debugmsgs)) {
+        $dbgtext = '[TEMP DEBUG] no consultant tab because: ' . implode(' | ', $debugmsgs);
+        echo '<div class="dc-debug">' . s($dbgtext) . '</div>';
+    }
+    echo '<div class="dc-tabs-scroll"><div class="dc-tabs" role="tablist">' . $tabhtml . '</div></div>';
+    echo '<div class="dc-panels">' . $panelhtml . '</div>';
+    echo '<script data-first="' . s($first) . '">
+(function() {
+    var first = document.currentScript.getAttribute("data-first");
+    var tabs = Array.prototype.slice.call(document.querySelectorAll(".dc-tab"));
+    var panels = Array.prototype.slice.call(document.querySelectorAll(".dc-panel"));
+    function activate(key) {
+        tabs.forEach(function(t) { t.classList.toggle("active", t.getAttribute("data-panel") === key); });
+        panels.forEach(function(p) {
+            var on = p.id === key;
+            p.classList.toggle("active", on);
+            var frame = p.querySelector("iframe");
+            if (on && frame && !frame.getAttribute("src") && frame.getAttribute("data-src")) {
+                frame.setAttribute("src", frame.getAttribute("data-src"));
+            }
+        });
+        var activeTab = tabs.filter(function(t) { return t.getAttribute("data-panel") === key; })[0];
+        if (activeTab && activeTab.scrollIntoView) {
+            activeTab.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
+        }
+    }
+    tabs.forEach(function(t) {
+        t.addEventListener("click", function() { activate(t.getAttribute("data-panel")); });
+    });
+    if (first) { activate(first); }
+})();
+</script>';
+    echo '</body></html>';
+    exit;
+}
+
+$type = optional_param('type', 0, PARAM_INT);
+
 $iid = optional_param('iid', 0, PARAM_INT);
 $cid = optional_param('cid', 0, PARAM_INT);
 $fid = required_param('fid', PARAM_INT);
@@ -374,50 +756,7 @@ $forumcontext = context_module::instance($cm->id);
 // before the user completes the enrolment flow). This gives them the student
 // role, without which they would not be allowed to post in the forum.
 // Guests and anonymous visitors are left for require_course_login() to handle.
-$coursecontext = \context_course::instance($course->id);
-if (isloggedin() && !isguestuser()
-        && !is_enrolled($coursecontext)
-        && !has_capability('moodle/course:view', $coursecontext)) {
-
-    // Prefer a password-less self enrolment instance, as vitrina does.
-    $selfinstance = $DB->get_record('enrol', [
-        'courseid' => $course->id,
-        'enrol' => 'self',
-        'status' => ENROL_INSTANCE_ENABLED,
-    ], '*', IGNORE_MULTIPLE);
-
-    if ($selfinstance && empty($selfinstance->password)) {
-        $selfplugin = enrol_get_plugin('self');
-        if ($selfplugin) {
-            $selfplugin->enrol_self($selfinstance);
-        }
-    }
-
-    // Fall back to a manual enrolment instance when no self enrolment applies.
-    if (!is_enrolled($coursecontext)) {
-        $manualinstance = $DB->get_record('enrol', [
-            'courseid' => $course->id,
-            'enrol' => 'manual',
-            'status' => ENROL_INSTANCE_ENABLED,
-        ], '*', IGNORE_MULTIPLE);
-
-        if ($manualinstance && !empty($manualinstance->roleid)) {
-            $manualplugin = enrol_get_plugin('manual');
-            if ($manualplugin) {
-                $manualplugin->enrol_user($manualinstance, $USER->id, (int)$manualinstance->roleid);
-            }
-        }
-    }
-
-    // The enrolment flow triggers notifications/events that initialise the page
-    // output and lock the theme for the current request. Continuing here would
-    // make require_course_login() call $PAGE->set_course() after the theme was
-    // already set up, which throws a coding_exception. Instead, redirect back to
-    // the same page so the now-enrolled user loads it fresh in the next request.
-    if (is_enrolled($coursecontext)) {
-        redirect($url);
-    }
-}
+mod_hsuforum_discuss_embed_auto_enrol_course((int)$course->id);
 
 require_course_login($course, true, $cm);
 require_capability('mod/hsuforum:viewdiscussion', $forumcontext);
@@ -428,6 +767,15 @@ $seed = $usecidmode
     : mod_hsuforum_discuss_embed_prepare_iid_seed($iid, $forum);
 
 $discussionid = mod_hsuforum_discuss_embed_resolve_discussionid($forum, $seed, $usecidmode);
+
+// Target page: when type=1 with an iid-mode data record, render the multi-tab
+// page (comment + consultant expert tabs) instead of redirecting.
+if ($type === 1 && !$usecidmode && !empty($iid)) {
+    $record = $DB->get_record('data_records', ['id' => $iid], '*', MUST_EXIST);
+    $data = $DB->get_record('data', ['id' => $record->dataid], '*', MUST_EXIST);
+    mod_hsuforum_discuss_embed_render_tabs_page($forum, $data, $record, (int)$discussionid);
+    // mod_hsuforum_discuss_embed_render_tabs_page() echoes the page and exits.
+}
 
 // Hand off final rendering to discuss.php in embed mode.
 $targeturl = new \core\url('/mod/hsuforum/discuss.php', ['d' => $discussionid, 'embed' => 1]);

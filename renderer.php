@@ -1854,7 +1854,7 @@ HTML;
                 ? get_string('discussion', 'hsuforum')
                 : get_string('reply', 'hsuforum');
             $commands['reply'] = \core\output\html_writer::link(
-                new \core\url('/mod/hsuforum/post.php', array('reply' => $post->id)),
+                new \core\url('/mod/hsuforum/post.php', array('reply' => $post->id), 'mformhsuforum'),
                 $replylabel,
                 array(
                     'title' => $replytitle,

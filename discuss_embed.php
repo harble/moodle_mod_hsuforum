@@ -572,10 +572,13 @@ function mod_hsuforum_discuss_embed_render_tabs_page(stdClass $forum, stdClass $
     global $DB;
 
     // The consultant forum instance that hosts the "咨询专家" discussions.
-    // The value "138" is the course-module id of that forum (as seen in
-    // /mod/hsuforum/view.php?id=138). Hard-coded for now; intended to become
-    // configurable later.
-    $consultforumcmid = 138;
+    // The value is the course-module id of that forum (as seen in
+    // /mod/hsuforum/view.php?id=N). Configurable in hsuforum's global plugin
+    // settings; defaults to 138 when not configured.
+    $consultforumcmid = (int)get_config('hsuforum', 'consultforumcmid');
+    if (empty($consultforumcmid)) {
+        $consultforumcmid = 138;
+    }
 
     // Resolve the course-module id to its hsuforum instance.
     $consultforum = null;
@@ -594,7 +597,7 @@ function mod_hsuforum_discuss_embed_render_tabs_page(stdClass $forum, stdClass $
 
     // Comment tab re-uses the original iid-mode result.
     $tabs = [];
-    $commenturl = new \core\url('/mod/hsuforum/discuss.php', ['d' => $commentdiscussionid, 'embed' => 1]);
+    $commenturl = new \core\url('/mod/hsuforum/discuss.php', ['d' => $commentdiscussionid, 'embed' => 1, 'embed_type' => 'comment']);
     $tabs[] = [
         'key' => 'comment',
         'main' => get_string('tab_comment', 'hsuforum'),
@@ -603,15 +606,10 @@ function mod_hsuforum_discuss_embed_render_tabs_page(stdClass $forum, stdClass $
         'icon' => 'comment',
     ];
 
-    // TEMP DEBUG: collect reasons so they are visible directly in the page.
-    $debugmsgs = [];
-
     // Consultant expert tabs: one per channel with a matched reviewer.
     if ($consultforum) {
         $channels = mod_hsuforum_discuss_embed_get_record_channels($data, $record);
-        if (empty($channels)) {
-            $debugmsgs[] = 'no channels field/value found (dataid=' . $data->id . ', recordid=' . $record->id . ')';
-        }
+        $consulttabs = [];
         $n = 0;
         foreach ($channels as $channel) {
             $reviewerid = mod_hsuforum_discuss_embed_resolve_channel_reviewer(
@@ -619,32 +617,37 @@ function mod_hsuforum_discuss_embed_render_tabs_page(stdClass $forum, stdClass $
                 mod_hsuforum_discuss_embed_normalize_channel($channel)
             );
             if (!$reviewerid) {
-                $debugmsgs[] = 'no reviewer matched channel [' . $channel . '] (dataname=' . $data->name . ')';
                 continue;
             }
             $discussionid = mod_hsuforum_discuss_embed_ensure_channel_discussion($consultforum->id, $channel, $reviewerid);
             if (!$discussionid) {
-                $debugmsgs[] = 'create/reuse discussion failed channel [' . $channel . '] forum=' . $consultforum->id;
                 continue;
             }
             $n++;
-            $tabs[] = [
+            $consulttabs[] = [
                 'key' => 'consult-' . $n,
                 'main' => get_string('tab_consultant', 'hsuforum'),
-                'sub' => get_string('tab_consultant_channel', 'hsuforum', $channel),
-                'url' => (new \core\url('/mod/hsuforum/discuss.php', ['d' => $discussionid, 'embed' => 1]))->out(false),
+                'channel' => $channel,
+                'url' => (new \core\url('/mod/hsuforum/discuss.php', ['d' => $discussionid, 'embed' => 1, 'embed_type' => 'consult']))->out(false),
                 'icon' => 'consult',
             ];
         }
-    } else {
-        $debugmsgs[] = 'consultant forum (cmid=' . $consultforumcmid . ') not found';
+        // When there is only one consultant tab, keep the subtitle fixed instead
+        // of showing the channel name.
+        $usesinglesub = count($consulttabs) === 1;
+        foreach ($consulttabs as $ctab) {
+            $ctab['sub'] = $usesinglesub
+                ? get_string('tab_consultant_single', 'hsuforum')
+                : get_string('tab_consultant_channel', 'hsuforum', $ctab['channel']);
+            $tabs[] = $ctab;
+        }
     }
 
     $iconcomment = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
         . 'stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
     $iconconsult = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
-        . 'stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/>'
-        . '<path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>';
+        . 'stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>'
+        . '<path d="M10 9a2 2 0 1 1 4 0c0 1.5-2 2-2 3.5"/><line x1="12" y1="17" x2="12" y2="17.01"/></svg>';
 
     $tabhtml = '';
     $panelhtml = '';
@@ -668,7 +671,6 @@ function mod_hsuforum_discuss_embed_render_tabs_page(stdClass $forum, stdClass $
     echo '<title>' . s(get_string('discussion', 'hsuforum')) . '</title>';
     echo '<style>
         html, body { margin: 0; padding: 0; background: #f6f7f9; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
-        .dc-debug { background: #fff8e6; border-bottom: 1px solid #f0dfae; color: #7a5c00; padding: 8px 12px; font: 12px/1.5 Consolas, monospace; white-space: pre-wrap; word-break: break-all; }
         .dc-tabs-scroll { overflow-x: auto; overflow-y: hidden; background: #fff; border-bottom: 1px solid #e5e7eb; scrollbar-width: thin; }
         .dc-tabs { display: flex; gap: 8px; padding: 10px 12px; min-width: max-content; }
         .dc-tab { display: flex; align-items: center; justify-content: space-between; column-gap: 16px;
@@ -684,13 +686,9 @@ function mod_hsuforum_discuss_embed_render_tabs_page(stdClass $forum, stdClass $
         .dc-tab.active .dc-tab-icon { color: #4f46e5; }
         .dc-panel { display: none; }
         .dc-panel.active { display: block; }
-        .dc-panel iframe { display: block; width: 100%; border: 0; min-height: 75vh; height: calc(100vh - 60px); }
+        .dc-panel iframe { display: block; width: 100%; border: 0; height: 360px; min-height: 360px; }
     </style>';
     echo '</head><body>';
-    if (!empty($debugmsgs)) {
-        $dbgtext = '[TEMP DEBUG] no consultant tab because: ' . implode(' | ', $debugmsgs);
-        echo '<div class="dc-debug">' . s($dbgtext) . '</div>';
-    }
     echo '<div class="dc-tabs-scroll"><div class="dc-tabs" role="tablist">' . $tabhtml . '</div></div>';
     echo '<div class="dc-panels">' . $panelhtml . '</div>';
     echo '<script data-first="' . s($first) . '">
@@ -698,14 +696,31 @@ function mod_hsuforum_discuss_embed_render_tabs_page(stdClass $forum, stdClass $
     var first = document.currentScript.getAttribute("data-first");
     var tabs = Array.prototype.slice.call(document.querySelectorAll(".dc-tab"));
     var panels = Array.prototype.slice.call(document.querySelectorAll(".dc-panel"));
+    function autosize(frame) {
+        if (!frame) { return; }
+        try {
+            var doc = frame.contentDocument;
+            if (!doc) { return; }
+            var body = doc.body, html = doc.documentElement;
+            var h = Math.max(
+                body.scrollHeight || 0, html.scrollHeight || 0,
+                body.offsetHeight || 0, html.offsetHeight || 0
+            );
+            frame.style.height = (h + 12) + "px";
+        } catch (e) { /* cross-origin */ }
+    }
     function activate(key) {
         tabs.forEach(function(t) { t.classList.toggle("active", t.getAttribute("data-panel") === key); });
         panels.forEach(function(p) {
             var on = p.id === key;
             p.classList.toggle("active", on);
             var frame = p.querySelector("iframe");
-            if (on && frame && !frame.getAttribute("src") && frame.getAttribute("data-src")) {
-                frame.setAttribute("src", frame.getAttribute("data-src"));
+            if (on && frame) {
+                if (!frame.getAttribute("src") && frame.getAttribute("data-src")) {
+                    frame.setAttribute("src", frame.getAttribute("data-src"));
+                } else if (frame.contentDocument && frame.contentDocument.readyState === "complete") {
+                    autosize(frame);
+                }
             }
         });
         var activeTab = tabs.filter(function(t) { return t.getAttribute("data-panel") === key; })[0];
@@ -716,6 +731,17 @@ function mod_hsuforum_discuss_embed_render_tabs_page(stdClass $forum, stdClass $
     tabs.forEach(function(t) {
         t.addEventListener("click", function() { activate(t.getAttribute("data-panel")); });
     });
+    panels.forEach(function(p) {
+        var frame = p.querySelector("iframe");
+        if (frame) {
+            frame.addEventListener("load", function() { autosize(frame); });
+        }
+    });
+    // Keep the active embedded page height fresh when the reply form expands.
+    setInterval(function() {
+        var active = document.querySelector(".dc-panel.active iframe");
+        if (active) { autosize(active); }
+    }, 600);
     if (first) { activate(first); }
 })();
 </script>';

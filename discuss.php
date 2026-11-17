@@ -51,10 +51,14 @@
     $pin    = optional_param('pin', -1, PARAM_INT);          // If set, pin or unpin this discussion.
     $warned = optional_param('warned', 0, PARAM_INT);
     $embed  = optional_param('embed', 0, PARAM_BOOL);
+    $embedtype = optional_param('embed_type', '', PARAM_ALPHA);
 
     $config = get_config('hsuforum');
 
     $url = new \core\url('/mod/hsuforum/discuss.php', array('d'=>$d));
+    if ($embedtype !== '') {
+        $url->param('embed_type', $embedtype);
+    }
     if ($root !== 0) {
         $url->param('root', $root);
     }
@@ -220,12 +224,50 @@
     $dsort = hsuforum_lib_discussion_sort::get_from_session($forum, $modcontext);
 
     $renderer = $PAGE->get_renderer('mod_hsuforum');
+    $renderer->set_embed_type($embedtype);
     $PAGE->requires->js_init_call('M.mod_hsuforum.init', null, false, $renderer->get_js_module());
     hsuforum_init_local_mention($PAGE, $modcontext, (int)$course->id);
 
     $PAGE->set_title("$course->shortname: $discussion->name");
     $PAGE->set_heading($course->fullname);
     echo $OUTPUT->header();
+
+    // Detect embed mode as early as possible so the embed styling is applied
+    // before the discussion content is painted, avoiding a visible flash of the
+    // full page that then gets hidden.
+    if (!empty($embed)) {
+        echo '<style>
+            body.embed-mode,
+            body.embed-mode #page,
+            body.embed-mode #page-content,
+            body.embed-mode #region-main-box,
+            body.embed-mode #region-main {
+                margin-top: 0 !important;
+                padding-top: 0 !important;
+            }
+            body.embed-mode #page-content > :first-child,
+            body.embed-mode #region-main > :first-child {
+                margin-top: 0 !important;
+            }
+            body.embed-mode #topofscroll {
+                margin-top: -1rem !important;
+            }
+            body.embed-mode .drawer-toggler.drawer-left-toggle.open-nav,
+            body.embed-mode .drawer-toggler.drawer-right-toggle.ms-auto {
+                display: none !important;
+            }
+        </style>';
+        echo '<script>
+            (function() {
+                try {
+                    document.documentElement.className = document.documentElement.className + " embed-mode";
+                } catch (e) {}
+                if (document.body && document.body.className.indexOf("embed-mode") === -1) {
+                    document.body.className = document.body.className + " embed-mode";
+                }
+            })();
+        </script>';
+    }
 
     if ($forum->type != 'single') {
          echo "<h2><a href='$CFG->wwwroot/mod/hsuforum/view.php?f=$forum->id'>&#171; ".format_string($forum->name)."</a></h2>";
@@ -432,27 +474,8 @@
     echo $renderer->render_advanced_editor($editor, 'preload-container-editor', 0).'</div></div>';
 
     if (!empty($embed)) {
-        echo '<style>
-            body.embed-mode,
-            body.embed-mode #page,
-            body.embed-mode #page-content,
-            body.embed-mode #region-main-box,
-            body.embed-mode #region-main {
-                margin-top: 0 !important;
-                padding-top: 0 !important;
-            }
-            body.embed-mode #page-content > :first-child,
-            body.embed-mode #region-main > :first-child {
-                margin-top: 0 !important;
-            }
-            body.embed-mode #topofscroll {
-                margin-top: -1rem !important;
-            }
-        </style>';
-
         echo '<script>
             document.addEventListener("DOMContentLoaded", function() {
-                document.body.classList.add("embed-mode");
                 var pageContent = document.getElementById("page-content");
                 if (!pageContent) {
                     return;

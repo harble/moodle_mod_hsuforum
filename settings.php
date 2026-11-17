@@ -41,6 +41,11 @@ if ($ADMIN->fulltree) {
     $settings->add(new admin_setting_configtext('hsuforum/manydiscussions', get_string('manydiscussions', 'hsuforum'),
                        get_string('configmanydiscussions', 'hsuforum'), 100, PARAM_INT));
 
+    // Course-module id (the "id" seen in /mod/hsuforum/view.php?id=N) of the
+    // hsuforum instance that hosts the "咨询专家" discussions.
+    $settings->add(new admin_setting_configtext('hsuforum/consultforumcmid', get_string('consultforumcmid', 'hsuforum'),
+                       get_string('configconsultforumcmid', 'hsuforum'), 138, PARAM_INT));
+
     if (isset($CFG->maxbytes)) {
         $maxbytes = 0;
         if (isset($config->maxbytes)) {

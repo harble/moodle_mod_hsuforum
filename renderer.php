@@ -45,6 +45,38 @@ require_once($CFG->dirroot . '/grade/grading/lib.php');
 class mod_hsuforum_renderer extends \core\output\plugin_renderer_base {
 
     /**
+     * Embed context of the currently rendered discussion.
+     * '' => normal forum usage; 'comment' => embedded comment tab;
+     * 'consult' => embedded consultant (咨询专家) tab.
+     * Used to localise reply / footer labels per tab type.
+     * @var string
+     */
+    protected $discussembedtype = '';
+
+    /**
+     * Set the embed tab type so that thread labels adapt accordingly.
+     * @param string $type ''|'comment'|'consult'
+     */
+    public function set_embed_type($type) {
+        $this->discussembedtype = ($type === 'consult' || $type === 'comment') ? $type : '';
+    }
+
+    /**
+     * Resolve the current embed tab type for label localisation.
+     * Prefers the explicitly set value, falling back to the request's
+     * embed_type parameter so it also works across renderer instances.
+     * @return string ''|'comment'|'consult'
+     */
+    protected function get_embed_type() {
+        global $PAGE;
+        if ($this->discussembedtype !== '') {
+            return $this->discussembedtype;
+        }
+        $type = $PAGE->url ? $PAGE->url->get_param('embed_type') : '';
+        return ($type === 'consult' || $type === 'comment') ? $type : '';
+    }
+
+    /**
      * @param $course
      * @param $cm
      * @param $forum
@@ -639,6 +671,18 @@ class mod_hsuforum_renderer extends \core\output\plugin_renderer_base {
         $datecreated = $byuser . ' ' . $datecreated;
         $byuser = '';
 
+        // Author avatar inside .hsuforum-thread-author: show the user's name on
+        // hover via title and link to their profile page when available.
+        $authortitle = s(strip_tags($d->fullname));
+        $avatarimg = '<img class="userpicture img-circle" src="' . $d->imagesrc . '" alt="" />';
+        if (!empty($d->userurl)) {
+            $authoravatar = \core\output\html_writer::link($d->userurl, $avatarimg, [
+                'title' => $authortitle,
+            ]);
+        } else {
+            $authoravatar = \core\output\html_writer::tag('span', $avatarimg, ['title' => $authortitle]);
+        }
+
         $threadheader = <<<HTML
         <div class="hsuforum-thread-header">
             <div class="hsuforum-thread-title">
@@ -656,7 +700,7 @@ HTML;
     data-discussionid="$d->id" data-postid="$d->postid" data-author="$author" data-isdiscussion="true" $attrs>
     <header id="h{$d->postid}" class="clearfix $unreadclass">
         <div class="hsuforum-thread-author">
-            <img class="userpicture img-circle" src="{$d->imagesrc}" alt="" />
+            $authoravatar
             <p class="hsuforum-thread-byline">
                 $byuser $group $revealed
             </p>
@@ -1615,9 +1659,18 @@ HTML;
             // It is a reply, AKA new post
             $ownpost = true;
             $param  = 'reply';
-            $legend = ($PAGE->pagetype === 'mod-hsuforum-discuss')
-                ? get_string('addyourdiscussion', 'hsuforum')
-                : get_string('addareply', 'hsuforum');
+            $embedtype = $this->get_embed_type();
+            if ($PAGE->pagetype === 'mod-hsuforum-discuss') {
+                if ($embedtype === 'consult') {
+                    $legend = get_string('ftr_consult', 'hsuforum');
+                } else if ($embedtype === 'comment') {
+                    $legend = get_string('ftr_comment', 'hsuforum');
+                } else {
+                    $legend = get_string('addyourdiscussion', 'hsuforum');
+                }
+            } else {
+                $legend = get_string('addareply', 'hsuforum');
+            }
             $thresholdwarning = hsuforum_check_throttling($forum, $cm);
             if (!empty($thresholdwarning)) {
                 $message = get_string($thresholdwarning->errorcode, $thresholdwarning->module, $thresholdwarning->additional);
@@ -1850,9 +1903,18 @@ HTML;
         if ($canreply && empty($post->privatereply)) {
             $postuser   = hsuforum_extract_postuser($post, $forum, context_module::instance($cm->id));
             $replytitle = get_string('replybuttontitle', 'hsuforum', strip_tags($postuser->fullname));
-            $replylabel = ($PAGE->pagetype === 'mod-hsuforum-discuss' && empty($post->parent))
-                ? get_string('discussion', 'hsuforum')
-                : get_string('reply', 'hsuforum');
+            $embedtype = $this->get_embed_type();
+            if ($PAGE->pagetype === 'mod-hsuforum-discuss' && empty($post->parent)) {
+                if ($embedtype === 'consult') {
+                    $replylabel = get_string('tab_reply_consult', 'hsuforum');
+                } else if ($embedtype === 'comment') {
+                    $replylabel = get_string('tab_reply_comment', 'hsuforum');
+                } else {
+                    $replylabel = get_string('discussion', 'hsuforum');
+                }
+            } else {
+                $replylabel = get_string('reply', 'hsuforum');
+            }
             $commands['reply'] = \core\output\html_writer::link(
                 new \core\url('/mod/hsuforum/post.php', array('reply' => $post->id), 'mformhsuforum'),
                 $replylabel,

@@ -70,6 +70,71 @@ function mod_hsuforum_discuss_embed_notice(string $message): void {
 }
 
 /**
+ * Resolve a course-mode discussion title by matching the source course's name
+ * against users' "审批" profile settings (the "配置项" area).
+ *
+ * The matching value is the source course's own name (fullname), not the full
+ * category path. A configured row counts as a hit only when it equals the value
+ * or ends with ".../value" (suffix match on the last slash segment); the full
+ * matched row is then used as the discussion title. The profile field name is
+ * not significant - any user-info field whose name contains "审批" is examined.
+ *
+ * @param int $courseid Source course id.
+ * @return array|null ['title'=>string, 'creatorid'=>int, 'matchkey'=>string]
+ *                    for the first matched user/row, or null when nothing
+ *                    matched.
+ */
+function mod_hsuforum_discuss_embed_resolve_course_title(int $courseid): ?array {
+    global $DB;
+
+    $course = $DB->get_record('course', ['id' => $courseid], '*', MUST_EXIST);
+
+    $matchkey = trim(strip_tags((string)$course->fullname));
+    if ($matchkey === '') {
+        return null;
+    }
+
+    $fields = $DB->get_records_sql(
+        "SELECT id FROM {user_info_field} WHERE " . $DB->sql_like('name', ':like'),
+        ['like' => '%审批%']
+    );
+    foreach ($fields as $field) {
+        $userdatas = $DB->get_records('user_info_data', ['fieldid' => (int)$field->id]);
+        foreach ($userdatas as $userdata) {
+            $raw = (string)$userdata->data;
+            if ((int)$userdata->dataformat === 1) {
+                $raw = preg_replace('/<br\s*\/?>/i', "\n", $raw);
+                $raw = preg_replace('/<\/(p|div|li|h[1-6]|tr)>/i', "\n", $raw);
+                $raw = strip_tags($raw);
+            }
+            $lines = array_values(array_filter(array_map('trim', preg_split('/\r?\n/', $raw))));
+            $suffix = $matchkey;
+            foreach ($lines as $line) {
+                // Suffix match only: the whole row equals the course name, or the
+                // row ends with ".../courseName" (the last path segment after a
+                // slash matches). A hit in the middle of the row does not count.
+                if ($line === $suffix) {
+                    return [
+                        'title' => $line,
+                        'creatorid' => (int)$userdata->userid,
+                        'matchkey' => $matchkey,
+                    ];
+                }
+                if (substr($line, -strlen($suffix) - 1) === '/' . $suffix) {
+                    return [
+                        'title' => $line,
+                        'creatorid' => (int)$userdata->userid,
+                        'matchkey' => $matchkey,
+                    ];
+                }
+            }
+        }
+    }
+
+    return null;
+}
+
+/**
  * Build seed data for course mode (cid + fid).
  *
  * @param int $cid Source course id.
@@ -560,42 +625,18 @@ function mod_hsuforum_discuss_embed_ensure_channel_discussion(int $forumid, stri
 
 /**
  * Render a standalone, iframe-friendly multi-tab page (comment + consultant
- * expert tabs). Used when type=1 with an iid mode data record.
+ * expert tabs). Used when a consultant discussion list is available and the
+ * type flag is not 0.
  *
- * @param stdClass $forum Target forum of the comment mode (fid param).
- * @param stdClass $data mod_data activity record.
- * @param stdClass $record data record.
  * @param int $commentdiscussionid Resolved comment-mode discussion id.
+ * @param array $consulttabs List of consultant tabs, each
+ *              ['title' => string, 'discussionid' => int].
  * @return void
  */
-function mod_hsuforum_discuss_embed_render_tabs_page(stdClass $forum, stdClass $data, stdClass $record, int $commentdiscussionid): void {
-    global $DB;
-
-    // The consultant forum instance that hosts the "咨询专家" discussions.
-    // The value is the course-module id of that forum (as seen in
-    // /mod/hsuforum/view.php?id=N). Configurable in hsuforum's global plugin
-    // settings; defaults to 138 when not configured.
-    $consultforumcmid = (int)get_config('hsuforum', 'consultforumcmid');
-    if (empty($consultforumcmid)) {
-        $consultforumcmid = 138;
-    }
-
-    // Resolve the course-module id to its hsuforum instance.
-    $consultforum = null;
-    $consultforumcm = get_coursemodule_from_id('hsuforum', $consultforumcmid, 0, false, MUST_EXIST);
-    if ($consultforumcm && !empty($consultforumcm->instance)) {
-        $consultforum = $DB->get_record('hsuforum', ['id' => (int)$consultforumcm->instance], '*', IGNORE_MISSING);
-    }
-
-    // Ensure the current user is enrolled in the consultant forum's course too,
-    // otherwise they could not view the embedded consultant discussions.
-    if ($consultforum) {
-        mod_hsuforum_discuss_embed_auto_enrol_course((int)$consultforum->course);
-    }
-
+function mod_hsuforum_discuss_embed_render_tabs_page(int $commentdiscussionid, array $consulttabs): void {
     header('Content-Type: text/html; charset=utf-8');
 
-    // Comment tab re-uses the original iid-mode result.
+    // Comment tab re-uses the comment-mode discussion result.
     $tabs = [];
     $commenturl = new \core\url('/mod/hsuforum/discuss.php', ['d' => $commentdiscussionid, 'embed' => 1, 'embed_type' => 'comment']);
     $tabs[] = [
@@ -606,41 +647,33 @@ function mod_hsuforum_discuss_embed_render_tabs_page(stdClass $forum, stdClass $
         'icon' => 'comment',
     ];
 
-    // Consultant expert tabs: one per channel with a matched reviewer.
-    if ($consultforum) {
-        $channels = mod_hsuforum_discuss_embed_get_record_channels($data, $record);
-        $consulttabs = [];
-        $n = 0;
-        foreach ($channels as $channel) {
-            $reviewerid = mod_hsuforum_discuss_embed_resolve_channel_reviewer(
-                $data,
-                mod_hsuforum_discuss_embed_normalize_channel($channel)
-            );
-            if (!$reviewerid) {
-                continue;
+    // Consultant expert tabs, one per resolved discussion with a matched expert.
+    $consultcount = 0;
+    foreach ($consulttabs as $ctab) {
+        $consultcount++;
+        $tabs[] = [
+            'key' => 'consult-' . $consultcount,
+            'main' => get_string('tab_consultant', 'hsuforum'),
+            'sub' => get_string('tab_consultant_single', 'hsuforum'),
+            'label' => $ctab['title'],
+            'url' => (new \core\url('/mod/hsuforum/discuss.php', [
+                'd' => (int)$ctab['discussionid'],
+                'embed' => 1,
+                'embed_type' => 'consult',
+            ]))->out(false),
+            'icon' => 'consult',
+        ];
+    }
+
+    // With a single consultant tab the subtitle stays fixed; with multiple tabs
+    // it carries the channel/category label instead.
+    if ($consultcount > 1) {
+        foreach ($tabs as &$onetab) {
+            if (($onetab['icon'] ?? '') === 'consult' && !empty($onetab['label'])) {
+                $onetab['sub'] = get_string('tab_consultant_channel', 'hsuforum', $onetab['label']);
             }
-            $discussionid = mod_hsuforum_discuss_embed_ensure_channel_discussion($consultforum->id, $channel, $reviewerid);
-            if (!$discussionid) {
-                continue;
-            }
-            $n++;
-            $consulttabs[] = [
-                'key' => 'consult-' . $n,
-                'main' => get_string('tab_consultant', 'hsuforum'),
-                'channel' => $channel,
-                'url' => (new \core\url('/mod/hsuforum/discuss.php', ['d' => $discussionid, 'embed' => 1, 'embed_type' => 'consult']))->out(false),
-                'icon' => 'consult',
-            ];
         }
-        // When there is only one consultant tab, keep the subtitle fixed instead
-        // of showing the channel name.
-        $usesinglesub = count($consulttabs) === 1;
-        foreach ($consulttabs as $ctab) {
-            $ctab['sub'] = $usesinglesub
-                ? get_string('tab_consultant_single', 'hsuforum')
-                : get_string('tab_consultant_channel', 'hsuforum', $ctab['channel']);
-            $tabs[] = $ctab;
-        }
+        unset($onetab);
     }
 
     $iconcomment = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
@@ -761,7 +794,7 @@ function mod_hsuforum_discuss_embed_render_tabs_page(stdClass $forum, stdClass $
     exit;
 }
 
-$type = optional_param('type', 0, PARAM_INT);
+$type = optional_param('type', 1, PARAM_INT);
 
 $iid = optional_param('iid', 0, PARAM_INT);
 $cid = optional_param('cid', 0, PARAM_INT);
@@ -806,15 +839,76 @@ $seed = $usecidmode
 
 $discussionid = mod_hsuforum_discuss_embed_resolve_discussionid($forum, $seed, $usecidmode);
 
-// Target page: when type=1 with an iid-mode data record, render the multi-tab
-// page (comment + consultant expert tabs) instead of redirecting.
-if ($type === 1 && !$usecidmode && !empty($iid)) {
-    $record = $DB->get_record('data_records', ['id' => $iid], '*', MUST_EXIST);
-    $data = $DB->get_record('data', ['id' => $record->dataid], '*', MUST_EXIST);
-    mod_hsuforum_discuss_embed_render_tabs_page($forum, $data, $record, (int)$discussionid);
+// Consultant (咨询专家) tabs are shown when type is not 0 (not set defaults to
+// 1 = enabled), for both cid and iid modes, and only when a matching expert
+// exists.
+$consulttabs = [];
+if ($type !== 0) {
+    // The consultant forum instance that hosts the "咨询专家" discussions. The
+    // configured value is the course-module id of that forum (as seen in
+    // /mod/hsuforum/view.php?id=N); defaults to 138 when not configured.
+    $consultforumcmid = (int)get_config('hsuforum', 'consultforumcmid');
+    if (empty($consultforumcmid)) {
+        $consultforumcmid = 138;
+    }
+
+    $consultforum = null;
+    $consultforumcm = get_coursemodule_from_id('hsuforum', $consultforumcmid, 0, false, IGNORE_MISSING);
+    if ($consultforumcm && !empty($consultforumcm->instance)) {
+        $consultforum = $DB->get_record('hsuforum', ['id' => (int)$consultforumcm->instance], '*', IGNORE_MISSING);
+    }
+
+    if ($consultforum) {
+        // Ensure the current user is enrolled in the consultant forum's course
+        // too, otherwise they could not view the embedded consultant pages.
+        mod_hsuforum_discuss_embed_auto_enrol_course((int)$consultforum->course);
+
+        if ($usecidmode) {
+            // cid mode: match the course's own name once. The matched user is
+            // the consultant discussion creator; the matched full row is the
+            // discussion title.
+            $match = mod_hsuforum_discuss_embed_resolve_course_title((int)$cid);
+            if ($match) {
+                $consultdid = mod_hsuforum_discuss_embed_ensure_channel_discussion(
+                    (int)$consultforum->id,
+                    $match['title'],
+                    (int)$match['creatorid']
+                );
+                if ($consultdid) {
+                    $consulttabs[] = ['title' => $match['title'], 'discussionid' => (int)$consultdid];
+                }
+            }
+        } else {
+            // iid mode: one consultant discussion per channel with a reviewer.
+            $record = $DB->get_record('data_records', ['id' => $iid], '*', MUST_EXIST);
+            $data = $DB->get_record('data', ['id' => $record->dataid], '*', MUST_EXIST);
+            $channels = mod_hsuforum_discuss_embed_get_record_channels($data, $record);
+            foreach ($channels as $channel) {
+                $reviewerid = mod_hsuforum_discuss_embed_resolve_channel_reviewer(
+                    $data,
+                    mod_hsuforum_discuss_embed_normalize_channel($channel)
+                );
+                if (!$reviewerid) {
+                    continue;
+                }
+                $consultdid = mod_hsuforum_discuss_embed_ensure_channel_discussion($consultforum->id, $channel, $reviewerid);
+                if (!$consultdid) {
+                    continue;
+                }
+                $consulttabs[] = ['title' => $channel, 'discussionid' => (int)$consultdid];
+            }
+        }
+    }
+}
+
+// When consultant tabs are available, render the multi-tab page; otherwise hand
+// off to the single comment discussion page in embed mode (which flips to
+// embed_type=comment).
+if (!empty($consulttabs)) {
+    mod_hsuforum_discuss_embed_render_tabs_page((int)$discussionid, $consulttabs);
     // mod_hsuforum_discuss_embed_render_tabs_page() echoes the page and exits.
 }
 
 // Hand off final rendering to discuss.php in embed mode.
-$targeturl = new \core\url('/mod/hsuforum/discuss.php', ['d' => $discussionid, 'embed' => 1]);
+$targeturl = new \core\url('/mod/hsuforum/discuss.php', ['d' => $discussionid, 'embed' => 1, 'embed_type' => 'comment']);
 redirect($targeturl);

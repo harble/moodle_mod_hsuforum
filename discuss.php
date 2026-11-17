@@ -256,6 +256,12 @@
             body.embed-mode .drawer-toggler.drawer-right-toggle.ms-auto {
                 display: none !important;
             }
+            body.embed-mode .modal-backdrop[data-region="modal-backdrop"] {
+                display: none !important;
+            }
+            body.embed-mode [data-region="modal"] {
+                display: none !important;
+            }
         </style>';
         echo '<script>
             (function() {

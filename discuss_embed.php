@@ -671,7 +671,7 @@ function mod_hsuforum_discuss_embed_render_tabs_page(stdClass $forum, stdClass $
     echo '<title>' . s(get_string('discussion', 'hsuforum')) . '</title>';
     echo '<style>
         html, body { margin: 0; padding: 0; background: #f6f7f9; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
-        .dc-tabs-scroll { overflow-x: auto; overflow-y: hidden; background: #fff; border-bottom: 1px solid #e5e7eb; scrollbar-width: thin; }
+        .dc-tabs-scroll { position: sticky; top: 0; z-index: 20; overflow-x: auto; overflow-y: hidden; background: #fff; border-bottom: 1px solid #e5e7eb; scrollbar-width: thin; }
         .dc-tabs { display: flex; gap: 8px; padding: 10px 12px; min-width: max-content; }
         .dc-tab { display: flex; align-items: center; justify-content: space-between; column-gap: 16px;
             border: 1px solid #e5e7eb; background: #f9fafb; color: #374151; border-radius: 8px;
@@ -686,7 +686,7 @@ function mod_hsuforum_discuss_embed_render_tabs_page(stdClass $forum, stdClass $
         .dc-tab.active .dc-tab-icon { color: #4f46e5; }
         .dc-panel { display: none; }
         .dc-panel.active { display: block; }
-        .dc-panel iframe { display: block; width: 100%; border: 0; height: 360px; min-height: 360px; }
+        .dc-panel iframe { display: block; width: 100%; border: 0; min-height: 360px; }
     </style>';
     echo '</head><body>';
     echo '<div class="dc-tabs-scroll"><div class="dc-tabs" role="tablist">' . $tabhtml . '</div></div>';
@@ -696,6 +696,7 @@ function mod_hsuforum_discuss_embed_render_tabs_page(stdClass $forum, stdClass $
     var first = document.currentScript.getAttribute("data-first");
     var tabs = Array.prototype.slice.call(document.querySelectorAll(".dc-tab"));
     var panels = Array.prototype.slice.call(document.querySelectorAll(".dc-panel"));
+    var iframes = panels.map(function(p) { return p.querySelector("iframe"); });
     function autosize(frame) {
         if (!frame) { return; }
         try {
@@ -706,7 +707,19 @@ function mod_hsuforum_discuss_embed_render_tabs_page(stdClass $forum, stdClass $
                 body.scrollHeight || 0, html.scrollHeight || 0,
                 body.offsetHeight || 0, html.offsetHeight || 0
             );
-            frame.style.height = (h + 12) + "px";
+            if (h > 0) {
+                // The inner page often fills (tracks) the iframe viewport, so
+                // measuring its height returns the current frame height. Growing
+                // every tick would then feed back into itself and grow forever.
+                // Once the content fits or fills the current height, hold steady;
+                // only grow when it genuinely overflows the current height.
+                var cur = parseInt(frame.style.height, 10) || 0;
+                if (cur > 0 && h <= cur) {
+                    frame.style.height = cur + "px";
+                } else {
+                    frame.style.height = (h + 12) + "px";
+                }
+            }
         } catch (e) { /* cross-origin */ }
     }
     function activate(key) {
@@ -731,8 +744,7 @@ function mod_hsuforum_discuss_embed_render_tabs_page(stdClass $forum, stdClass $
     tabs.forEach(function(t) {
         t.addEventListener("click", function() { activate(t.getAttribute("data-panel")); });
     });
-    panels.forEach(function(p) {
-        var frame = p.querySelector("iframe");
+    iframes.forEach(function(frame) {
         if (frame) {
             frame.addEventListener("load", function() { autosize(frame); });
         }

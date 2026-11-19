@@ -755,7 +755,22 @@ function mod_hsuforum_discuss_embed_render_tabs_page(int $commentdiscussionid, a
             }
         } catch (e) { /* cross-origin */ }
     }
-    function activate(key) {
+    // Keep any tab movement confined to the tab strip itself. scrollIntoView()
+    // on an element inside an iframe would also scroll the parent page to bring
+    // the iframe into view, fighting native scroll restoration on load. Only
+    // adjust the strips own scrollLeft instead.
+    function scrollTabIntoStrip(tab) {
+        if (!tab) { return; }
+        var strip = document.querySelector(".dc-tabs-scroll");
+        if (!strip) { return; }
+        var srect = strip.getBoundingClientRect();
+        var trect = tab.getBoundingClientRect();
+        var dx = 0;
+        if (trect.left < srect.left) { dx = trect.left - srect.left; }
+        else if (trect.right > srect.right) { dx = trect.right - srect.right; }
+        if (dx !== 0) { strip.scrollLeft += dx; }
+    }
+    function activate(key, scroll) {
         tabs.forEach(function(t) { t.classList.toggle("active", t.getAttribute("data-panel") === key); });
         panels.forEach(function(p) {
             var on = p.id === key;
@@ -769,13 +784,13 @@ function mod_hsuforum_discuss_embed_render_tabs_page(int $commentdiscussionid, a
                 }
             }
         });
-        var activeTab = tabs.filter(function(t) { return t.getAttribute("data-panel") === key; })[0];
-        if (activeTab && activeTab.scrollIntoView) {
-            activeTab.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
+        if (scroll) {
+            var activeTab = tabs.filter(function(t) { return t.getAttribute("data-panel") === key; })[0];
+            scrollTabIntoStrip(activeTab);
         }
     }
     tabs.forEach(function(t) {
-        t.addEventListener("click", function() { activate(t.getAttribute("data-panel")); });
+        t.addEventListener("click", function() { activate(t.getAttribute("data-panel"), true); });
     });
     iframes.forEach(function(frame) {
         if (frame) {
@@ -787,7 +802,9 @@ function mod_hsuforum_discuss_embed_render_tabs_page(int $commentdiscussionid, a
         var active = document.querySelector(".dc-panel.active iframe");
         if (active) { autosize(active); }
     }, 600);
-    if (first) { activate(first); }
+    // The initial activation must not scroll anything: let the browser restore
+    // the outer page scroll position undisturbed.
+    if (first) { activate(first, false); }
 })();
 </script>';
     echo '</body></html>';

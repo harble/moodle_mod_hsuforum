@@ -50,7 +50,9 @@ $url = new \core\url('/mod/hsuforum/user.php', array('id' => $userid));
 if ($isspecificcourse) {
     $url->param('course', $courseid);
 }
-if ($discussionsonly) {
+if ($mode === 'awaiting') {
+    $url->param('mode', 'awaiting');
+} else if ($discussionsonly) {
     $url->param('mode', 'discussions');
 }
 
@@ -126,7 +128,135 @@ $event = \mod_hsuforum\event\user_report_viewed::create($params);
 $event->trigger();
 
 // Get the posts by the requested user that the current user can access.
-$result = hsuforum_get_posts_by_user($user, $courses, $isspecificcourse, $discussionsonly, ($page * $perpage), $perpage);
+if ($mode === 'awaiting') {
+    $result = hsuforum_get_awaiting_reply_discussions($user, $courses, $isspecificcourse, ($page * $perpage), $perpage);
+} else {
+    $result = hsuforum_get_posts_by_user($user, $courses, $isspecificcourse, $discussionsonly, ($page * $perpage), $perpage);
+}
+
+// Awaiting mode: display the discussions the requested user started that have
+// been replied to by other users, rendered as discussion cards.
+if ($mode === 'awaiting') {
+    $userfullname = fullname($user);
+
+    if ($isspecificcourse) {
+        $a = new stdClass;
+        $a->fullname = $userfullname;
+        $a->coursename = format_string($course->fullname, true, array('context' => $coursecontext));
+        $pageheading = $a->coursename;
+        $pagetitle = get_string('discussionsawaitingreplyincourse', 'hsuforum', $a);
+    } else {
+        $pagetitle = get_string('discussionsawaitingreply', 'hsuforum', $userfullname);
+        $pageheading = $userfullname;
+    }
+
+    $PAGE->set_title($pagetitle);
+    $PAGE->set_heading($pageheading);
+
+    $PAGE->navigation->extend_for_user($user);
+    $PAGE->navigation->set_userid_for_parent_checks($user->id); // see MDL-25805 for reasons and for full commit reference for reversal when fixed.
+
+    // Edit navbar.
+    if (isset($courseid) && $courseid != SITEID) {
+        $usernode = $PAGE->navigation->find('user' . $user->id, null);
+        $usernode->make_active();
+        $navbar = $PAGE->navbar->add(get_string('discussionsawaitingreply', 'hsuforum'), new \core\url('/mod/hsuforum/user.php',
+                array('id' => $user->id, 'course' => $courseid, 'mode' => 'awaiting')));
+    }
+
+    echo $OUTPUT->header();
+    echo \core\output\html_writer::start_tag('div', array('class' => 'user-content'));
+
+    if ($isspecificcourse) {
+        $userheading = array(
+            'heading' => fullname($user),
+            'user' => $user,
+            'usercontext' => $usercontext,
+        );
+        echo $OUTPUT->context_header($userheading, 2);
+    } else {
+        echo $OUTPUT->heading($pagetitle);
+    }
+
+    $renderer = $PAGE->get_renderer('mod_hsuforum');
+    echo $renderer->svg_sprite();
+
+    if (empty($result->discussions)) {
+        echo $OUTPUT->heading(get_string('nodiscussionsawaitingreply', 'hsuforum', $userfullname));
+    } else {
+        $discussionrows = array();
+        foreach ($result->discussions as $post) {
+            $discussionrows[] = $post->discussion;
+        }
+        $discussions = $DB->get_records_list('hsuforum_discussions', 'id', array_unique($discussionrows));
+
+        $postoutput = array();
+        foreach ($result->discussions as $post) {
+            if (!isset($result->forums[$post->forum]) || !isset($discussions[$post->discussion])) {
+                // Something very VERY dodgy has happened if we end up here
+                continue;
+            }
+            $forum = $result->forums[$post->forum];
+            $cm = $forum->cm;
+            $discussion = $discussions[$post->discussion];
+            $course = $result->courses[$discussion->course];
+
+            $forumurl = new \core\url('/mod/hsuforum/view.php', array('id' => $cm->id));
+            $discussionurl = new \core\url('/mod/hsuforum/discuss.php', array('d' => $post->discussion));
+
+            // Consistent with the posts mode list, hide the unread status marker.
+            $post->postread = true;
+
+            $courseshortname = format_string($course->shortname, true, array('context' => context_course::instance($course->id)));
+            $forumname = format_string($forum->name, true, array('context' => $cm->context));
+
+            $fullsubjects = array();
+            if (!$isspecificcourse && !$hasparentaccess) {
+                $fullsubjects[] = \core\output\html_writer::link(new \core\url('/course/view.php', array('id' => $course->id)), $courseshortname);
+                $fullsubjects[] = \core\output\html_writer::link($forumurl, $forumname);
+            } else {
+                $fullsubjects[] = \core\output\html_writer::tag('span', $courseshortname);
+                $fullsubjects[] = \core\output\html_writer::tag('span', $forumname);
+            }
+            if ($forum->type != 'single') {
+                $discussionname = format_string($discussion->name, true, array('context' => $cm->context));
+                if (!$isspecificcourse && !$hasparentaccess) {
+                    $fullsubjects[] .= \core\output\html_writer::link($discussionurl, $discussionname);
+                } else {
+                    $fullsubjects[] .= \core\output\html_writer::tag('span', $discussionname);
+                }
+                // Consistent with the posts mode list, the reply subject is
+                // appended to the breadcrumb and links to that exact reply.
+                if ($post->parent != 0) {
+                    $postname = format_string($post->subject, true, array('context' => $cm->context));
+                    if (!$isspecificcourse && !$hasparentaccess) {
+                        $fullsubjects[] .= \core\output\html_writer::link(new \core\url('/mod/hsuforum/discuss.php', array('d' => $post->discussion, 'parent' => $post->id)), $postname);
+                    } else {
+                        $fullsubjects[] .= \core\output\html_writer::tag('span', $postname);
+                    }
+                }
+            }
+            $post->subject = join(' -> ', $fullsubjects);
+            // This is really important, if the strings are formatted again all the links
+            // we've added will be lost.
+            $post->subjectnoformat = true;
+            $discussionurl->set_anchor('p'.$post->id);
+            $fulllink = \core\output\html_writer::link($discussionurl, get_string("postincontext", "hsuforum"));
+
+            $commands = array('seeincontext' => $fulllink);
+            $postoutput[] = $renderer->post($cm, $discussion, $post, false, null, $commands);
+        }
+
+        foreach ($postoutput as $postoutputhtml) {
+            echo $postoutputhtml;
+        }
+        echo $OUTPUT->paging_bar($result->totalcount, $page, $perpage, $url);
+    }
+
+    echo \core\output\html_writer::end_tag('div');
+    echo $OUTPUT->footer();
+    exit;
+}
 
 // Check whether there are not posts to display.
 if (empty($result->posts)) {
